@@ -19,6 +19,8 @@ import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 
+import com.hrm.gui.attendance.AttendancePanel;
+
 /**
  * MainFrame - Main application frame with purple theme
  * Features header, sidebar navigation, and dynamic content area
@@ -372,7 +374,7 @@ public class MainFrame extends JFrame {
         btnRecruitment.addActionListener(e -> showPlaceholder("Tuyen dung"));
 
         // Cham cong & Luong
-        btnAttendance.addActionListener(e -> showPlaceholder("Cham cong"));
+        btnAttendance.addActionListener(e -> showAttendance());
         btnContracts.addActionListener(e -> showPlaceholder("Hop dong lao dong"));
         btnPayroll.addActionListener(e -> showPlaceholder("Tinh luong"));
 
@@ -616,6 +618,29 @@ public class MainFrame extends JFrame {
         // Add LeaveListPanel
         LeaveListPanel leavePanel = new LeaveListPanel();
         wrapperPanel.add(leavePanel, BorderLayout.CENTER);
+
+        contentPanel.add(wrapperPanel);
+        contentPanel.revalidate();
+        contentPanel.repaint();
+    }
+
+    private void showAttendance() {
+        setActiveButton(btnAttendance);
+        contentPanel.removeAll();
+
+        JPanel wrapperPanel = new JPanel(new BorderLayout());
+        wrapperPanel.setBackground(UIColors.LIGHT_GRAY_BG);
+        wrapperPanel.setBorder(new EmptyBorder(15, 15, 15, 15));
+
+        JLabel lblHeader = new JLabel("Cham cong & Lam them gio");
+        lblHeader.setFont(new Font("Segoe UI", Font.BOLD, 24));
+        lblHeader.setForeground(UIColors.TEXT_DARK);
+        lblHeader.setBorder(new EmptyBorder(0, 10, 15, 0));
+        wrapperPanel.add(lblHeader, BorderLayout.NORTH);
+
+        // Nhúng AttendancePanel vào content area
+        AttendancePanel attendancePanel = new AttendancePanel();
+        wrapperPanel.add(attendancePanel, BorderLayout.CENTER);
 
         contentPanel.add(wrapperPanel);
         contentPanel.revalidate();
