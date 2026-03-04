@@ -24,6 +24,9 @@ public class AttendancePanel extends JPanel {
     private final AttendanceService svc;
     private final User currentUser;
     private final boolean isAdmin;
+    private final boolean isHR;
+    private final boolean isManager;
+    private int maNVCaNhan = -1;
     private final NumberFormat moneyFmt;
 
     private JTabbedPane tabbedPane;
@@ -54,10 +57,30 @@ public class AttendancePanel extends JPanel {
     // Tab 5
     private JTable tablePC; private DefaultTableModel modelPC;
 
+    // Tab — Cham cong ca nhan
+    private JLabel lblCaNhanStatus;
+    private JButton btnCheckInCN, btnCheckOutCN;
+    private JComboBox<String> cboCaLamCaNhan;
+    private List<CaLam> dsCaLamCN;
+    private DefaultTableModel modelLichSuCaNhan;
+    private JTable tableLichSuCaNhan;
+    private JComboBox<String> cboThangCN, cboNamCN;
+    private JPanel statsPanelCN;
+    private javax.swing.Timer clockTimer;
+    // Tab — Dang ky OT (Employee/HR/Manager)
+    private DefaultTableModel modelDonOTCaNhan;
+    private JTable tableDonOTCaNhan;
+
     public AttendancePanel() {
         svc = AttendanceService.getInstance();
         currentUser = SessionContext.getInstance().getCurrentUser();
         isAdmin = SessionContext.getInstance().hasRole("ADMIN");
+        isHR = SessionContext.getInstance().hasRole("HR");
+        isManager = SessionContext.getInstance().hasRole("MANAGER");
+        if (currentUser != null && !isAdmin) {
+            maNVCaNhan = com.hrm.repo.AttendanceRepository.getInstance()
+                .getMaNVByTaiKhoan(currentUser.getId());
+        }
         moneyFmt = NumberFormat.getInstance(new Locale("vi", "VN"));
         setLayout(new BorderLayout()); setBackground(UIColors.LIGHT_GRAY_BG);
         initTabs();
@@ -73,9 +96,28 @@ public class AttendancePanel extends JPanel {
             tabbedPane.addTab("Duyet don OT", tabDuyetOT());
             tabbedPane.addTab("Phu cap & Khau tru", tabPhuCap());
             tabbedPane.addTab("Bang luong", tabBangLuong());
+        } else if (isHR) {
+            if (maNVCaNhan > 0) tabbedPane.addTab("Cham cong ca nhan", tabCaNhan());
+            tabbedPane.addTab("Tong hop CC", tabTongHopReadOnly());
+            tabbedPane.addTab("Duyet don OT", tabDuyetOT());
+            if (maNVCaNhan > 0) tabbedPane.addTab("Dang ky OT", tabDangKyOT());
+        } else if (isManager) {
+            if (maNVCaNhan > 0) tabbedPane.addTab("Cham cong ca nhan", tabCaNhan());
+            tabbedPane.addTab("Xem CC nhan vien", tabTongHopReadOnly());
+            tabbedPane.addTab("Duyet don OT", tabDuyetOT());
+            if (maNVCaNhan > 0) tabbedPane.addTab("Dang ky OT", tabDangKyOT());
         } else {
-            tabbedPane.addTab("Cham cong", tabCaNhan());
-            tabbedPane.addTab("Lich su", tabTongHop());
+            // EMPLOYEE
+            if (maNVCaNhan > 0) {
+                tabbedPane.addTab("Cham cong ca nhan", tabCaNhan());
+                tabbedPane.addTab("Dang ky OT", tabDangKyOT());
+            } else {
+                JPanel p = new JPanel(new GridBagLayout()); p.setBackground(UIColors.WHITE);
+                JLabel l = new JLabel("Tai khoan chua lien ket voi nhan vien. Vui long lien he quan tri vien.");
+                l.setFont(new Font("Segoe UI", Font.PLAIN, 14)); l.setForeground(UIColors.TEXT_GRAY);
+                p.add(l);
+                tabbedPane.addTab("Thong bao", p);
+            }
         }
         add(tabbedPane, BorderLayout.CENTER);
     }
@@ -1138,13 +1180,300 @@ public class AttendancePanel extends JPanel {
     }
 
     // ═══════════════════════════════════
-    //  TAB — EMPLOYEE (TODO)
+    //  TAB — CHAM CONG CA NHAN
     // ═══════════════════════════════════
     private JPanel tabCaNhan() {
-        JPanel p = new JPanel(new GridBagLayout()); p.setBackground(UIColors.WHITE);
-        JLabel l = new JLabel("Chuc nang cham cong ca nhan — Dang phat trien...");
-        l.setFont(new Font("Segoe UI", Font.PLAIN, 16)); l.setForeground(UIColors.TEXT_GRAY);
-        p.add(l); return p;
+        JPanel p = panel();
+
+        // === Status card (top) ===
+        JLabel lblTime = new JLabel();
+        lblTime.setFont(new Font("Segoe UI", Font.BOLD, 20));
+        lblTime.setForeground(UIColors.PRIMARY_PURPLE);
+        DateTimeFormatter fDT = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
+        lblTime.setText(LocalDateTime.now().format(fDT));
+        clockTimer = new javax.swing.Timer(1000, e2 ->
+            lblTime.setText(LocalDateTime.now().format(fDT)));
+        clockTimer.start();
+        // Stop the timer when this panel is no longer displayable (avoids memory leak)
+        p.addHierarchyListener(e -> {
+            if ((e.getChangeFlags() & java.awt.event.HierarchyEvent.DISPLAYABILITY_CHANGED) != 0
+                    && !p.isDisplayable() && clockTimer != null) {
+                clockTimer.stop();
+            }
+        });
+
+        lblCaNhanStatus = new JLabel("Dang tai...");
+        lblCaNhanStatus.setFont(new Font("Segoe UI", Font.BOLD, 14));
+
+        dsCaLamCN = svc.getDanhSachCaLam();
+        cboCaLamCaNhan = new JComboBox<>();
+        for (CaLam ca : dsCaLamCN) cboCaLamCaNhan.addItem(ca.getTenCaLam());
+
+        btnCheckInCN = btn("Check-in", UIColors.SUCCESS_GREEN);
+        btnCheckOutCN = btn("Check-out", UIColors.DANGER_RED);
+
+        btnCheckInCN.addActionListener(e -> {
+            int idx = cboCaLamCaNhan.getSelectedIndex();
+            if (idx < 0 || dsCaLamCN.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Vui long chon ca lam."); return;
+            }
+            String maCaLam = dsCaLamCN.get(idx).getMaCaLam();
+            ServiceResult<ChamCong> res = svc.checkIn(maNVCaNhan, maCaLam);
+            JOptionPane.showMessageDialog(this, res.getMessage());
+            refreshCaNhan(); loadLichSuCaNhan();
+        });
+
+        btnCheckOutCN.addActionListener(e -> {
+            ServiceResult<ChamCong> res = svc.checkOut(maNVCaNhan);
+            JOptionPane.showMessageDialog(this, res.getMessage());
+            refreshCaNhan(); loadLichSuCaNhan();
+        });
+
+        JPanel actionPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 5));
+        actionPanel.setOpaque(false);
+        actionPanel.add(new JLabel("Ca lam:"));
+        actionPanel.add(cboCaLamCaNhan);
+        actionPanel.add(btnCheckInCN);
+        actionPanel.add(btnCheckOutCN);
+
+        JPanel statusCard = new JPanel(new BorderLayout(5, 8));
+        statusCard.setBackground(new Color(245, 247, 255));
+        statusCard.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(UIColors.PRIMARY_PURPLE, 1),
+            new EmptyBorder(12, 15, 12, 15)));
+        statusCard.add(lblTime, BorderLayout.NORTH);
+        statusCard.add(lblCaNhanStatus, BorderLayout.CENTER);
+        statusCard.add(actionPanel, BorderLayout.SOUTH);
+
+        // === History panel (center) ===
+        JPanel histPanel = new JPanel(new BorderLayout(0, 5));
+        histPanel.setOpaque(false);
+
+        JPanel histToolbar = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 5));
+        histToolbar.setOpaque(false);
+        histToolbar.add(new JLabel("Thang:"));
+        cboThangCN = combMonth(); histToolbar.add(cboThangCN);
+        histToolbar.add(new JLabel("Nam:"));
+        cboNamCN = combYear(); histToolbar.add(cboNamCN);
+        JButton bLoad = btn("Xem lich su", UIColors.PRIMARY_PURPLE);
+        bLoad.addActionListener(e -> loadLichSuCaNhan());
+        histToolbar.add(bLoad);
+        histPanel.add(histToolbar, BorderLayout.NORTH);
+
+        String[] colsLS = {"Ngay", "Ca lam", "Gio vao", "Gio ra", "So gio", "Trang thai"};
+        modelLichSuCaNhan = mdl(colsLS);
+        tableLichSuCaNhan = tbl(modelLichSuCaNhan);
+        tableLichSuCaNhan.getColumnModel().getColumn(5).setCellRenderer(new StatusR());
+        histPanel.add(new JScrollPane(tableLichSuCaNhan), BorderLayout.CENTER);
+
+        statsPanelCN = new JPanel(new FlowLayout(FlowLayout.LEFT, 30, 5));
+        statsPanelCN.setOpaque(false);
+        histPanel.add(statsPanelCN, BorderLayout.SOUTH);
+
+        p.add(statusCard, BorderLayout.NORTH);
+        p.add(histPanel, BorderLayout.CENTER);
+
+        refreshCaNhan();
+        loadLichSuCaNhan();
+        return p;
+    }
+
+    private void refreshCaNhan() {
+        if (maNVCaNhan < 0 || lblCaNhanStatus == null) return;
+        ChamCong cc = svc.getChamCongHomNay(maNVCaNhan);
+        DateTimeFormatter fG = DateTimeFormatter.ofPattern("HH:mm");
+        if (cc == null) {
+            lblCaNhanStatus.setText("Chua check-in hom nay");
+            lblCaNhanStatus.setForeground(UIColors.TEXT_GRAY);
+            if (btnCheckInCN != null) btnCheckInCN.setVisible(true);
+            if (btnCheckOutCN != null) btnCheckOutCN.setVisible(false);
+            if (cboCaLamCaNhan != null) cboCaLamCaNhan.setVisible(true);
+        } else if (cc.getGioRa() == null) {
+            String tenCa = cc.getTenCaLam() != null ? cc.getTenCaLam() : cc.getMaCaLam();
+            lblCaNhanStatus.setText("Da check-in luc " + cc.getGioVao().format(fG) + "  —  Ca: " + tenCa);
+            lblCaNhanStatus.setForeground(UIColors.SUCCESS_GREEN);
+            if (btnCheckInCN != null) btnCheckInCN.setVisible(false);
+            if (btnCheckOutCN != null) btnCheckOutCN.setVisible(true);
+            if (cboCaLamCaNhan != null) cboCaLamCaNhan.setVisible(false);
+        } else {
+            lblCaNhanStatus.setText("Da check-out luc " + cc.getGioRa().format(fG)
+                + "  —  So gio lam: " + String.format("%.1f", cc.getSoGioLam()));
+            lblCaNhanStatus.setForeground(UIColors.INFO_BLUE);
+            if (btnCheckInCN != null) btnCheckInCN.setVisible(false);
+            if (btnCheckOutCN != null) btnCheckOutCN.setVisible(false);
+            if (cboCaLamCaNhan != null) cboCaLamCaNhan.setVisible(false);
+        }
+    }
+
+    private void loadLichSuCaNhan() {
+        if (maNVCaNhan < 0 || modelLichSuCaNhan == null) return;
+        modelLichSuCaNhan.setRowCount(0);
+        int th = Integer.parseInt((String) cboThangCN.getSelectedItem());
+        int nm = Integer.parseInt((String) cboNamCN.getSelectedItem());
+        LocalDate tu = LocalDate.of(nm, th, 1);
+        LocalDate den = tu.withDayOfMonth(tu.lengthOfMonth());
+        List<ChamCong> ds = svc.getLichSuChamCong(maNVCaNhan, tu, den);
+        DateTimeFormatter fN = DateTimeFormatter.ofPattern("dd/MM");
+        DateTimeFormatter fG = DateTimeFormatter.ofPattern("HH:mm");
+        for (ChamCong cc : ds) {
+            modelLichSuCaNhan.addRow(new Object[]{
+                cc.getNgay().format(fN),
+                cc.getTenCaLam() != null ? cc.getTenCaLam() : cc.getMaCaLam(),
+                cc.getGioVao() != null ? cc.getGioVao().format(fG) : "-",
+                cc.getGioRa()  != null ? cc.getGioRa().format(fG)  : "-",
+                String.format("%.1f", cc.getSoGioLam()),
+                cc.getTrangThai() != null ? cc.getTrangThai().getDisplayName() : "N/A"
+            });
+        }
+        if (statsPanelCN != null) {
+            long dg = ds.stream().filter(c -> c.getTrangThai() == ChamCong.TrangThai.DUNG_GIO).count();
+            long dm = ds.stream().filter(c -> c.getTrangThai() == ChamCong.TrangThai.DI_MUON).count();
+            long vm = ds.stream().filter(c -> c.getTrangThai() == ChamCong.TrangThai.VANG_MAT).count();
+            statsPanelCN.removeAll();
+            statsPanelCN.add(lbl("Tong ngay cong:", String.valueOf(ds.size()), UIColors.PRIMARY_PURPLE));
+            statsPanelCN.add(lbl("Dung gio:", String.valueOf(dg), UIColors.SUCCESS_GREEN));
+            statsPanelCN.add(lbl("Di muon:", String.valueOf(dm), UIColors.DANGER_RED));
+            statsPanelCN.add(lbl("Vang:", String.valueOf(vm), Color.GRAY));
+            statsPanelCN.revalidate(); statsPanelCN.repaint();
+        }
+    }
+
+    // ═══════════════════════════════════
+    //  TAB — TONG HOP READ-ONLY (HR/MANAGER)
+    // ═══════════════════════════════════
+    private JPanel tabTongHopReadOnly() {
+        JPanel p = panel();
+        JPanel tb = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 5)); tb.setOpaque(false);
+        tb.add(new JLabel("Thang:")); cboThang = combMonth(); tb.add(cboThang);
+        tb.add(new JLabel("Nam:")); cboNam = combYear(); tb.add(cboNam);
+        JButton bL = btn("Loc du lieu", UIColors.PRIMARY_PURPLE); bL.addActionListener(e -> loadCC()); tb.add(bL);
+        p.add(tb, BorderLayout.NORTH);
+        String[] cols = {"Ma NV", "Ho ten", "Ngay", "Ca lam", "Gio vao", "Gio ra", "So gio", "OT", "Trang thai"};
+        modelCC = mdl(cols); tableChamCong = tbl(modelCC);
+        tableChamCong.getColumnModel().getColumn(8).setCellRenderer(new StatusR());
+        p.add(new JScrollPane(tableChamCong), BorderLayout.CENTER);
+        statsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 30, 10));
+        statsPanel.setOpaque(false); statsPanel.setBorder(new EmptyBorder(5, 0, 0, 0));
+        p.add(statsPanel, BorderLayout.SOUTH);
+        loadCC(); return p;
+    }
+
+    // ═══════════════════════════════════
+    //  TAB — DANG KY OT (EMPLOYEE/HR/MANAGER)
+    // ═══════════════════════════════════
+    private JPanel tabDangKyOT() {
+        JPanel p = panel();
+
+        // Header
+        JLabel title = new JLabel("Dang ky lam them gio (OT)");
+        title.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        title.setForeground(UIColors.TEXT_DARK);
+
+        // Form
+        JPanel formPanel = new JPanel(new GridBagLayout());
+        formPanel.setBackground(new Color(245, 247, 255));
+        formPanel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(UIColors.PRIMARY_PURPLE, 1),
+            new EmptyBorder(12, 15, 12, 15)));
+        GridBagConstraints g = gbc();
+
+        g.gridx = 0; g.gridy = 0; g.weightx = 0;
+        formPanel.add(new JLabel("Ngay (dd/MM/yyyy):"), g);
+        JTextField txtNgayOT = new JTextField(12);
+        txtNgayOT.setText(LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
+        g.gridx = 1; g.weightx = 1; formPanel.add(txtNgayOT, g);
+
+        g.gridx = 0; g.gridy = 1; g.weightx = 0;
+        formPanel.add(new JLabel("So gio OT:"), g);
+        JTextField txtSoGio = new JTextField("1.0", 10);
+        g.gridx = 1; g.weightx = 1; formPanel.add(txtSoGio, g);
+
+        g.gridx = 0; g.gridy = 2; g.weightx = 0;
+        formPanel.add(new JLabel("Ly do:"), g);
+        JTextField txtLyDo = new JTextField(30);
+        g.gridx = 1; g.weightx = 1; formPanel.add(txtLyDo, g);
+
+        JButton btnTaoDon = btn("Gui don OT", UIColors.PRIMARY_PURPLE);
+        g.gridx = 0; g.gridy = 3; g.gridwidth = 2; g.insets = new Insets(12, 8, 8, 8);
+        formPanel.add(btnTaoDon, g);
+
+        JPanel topOT = new JPanel(new BorderLayout(0, 10));
+        topOT.setOpaque(false);
+        topOT.add(title, BorderLayout.NORTH);
+        topOT.add(formPanel, BorderLayout.CENTER);
+
+        // Table
+        String[] cols = {"Ma don", "Ngay", "So gio", "Ly do", "Trang thai"};
+        modelDonOTCaNhan = mdl(cols);
+        tableDonOTCaNhan = tbl(modelDonOTCaNhan);
+        tableDonOTCaNhan.getColumnModel().getColumn(4).setCellRenderer(new StatusR());
+
+        JButton btnHuyDon = btn("Huy don", UIColors.DANGER_RED);
+        JButton btnLamMoi = new JButton("Lam moi"); btnLamMoi.setFocusPainted(false);
+
+        JPanel tblHeader = new JPanel(new BorderLayout());
+        tblHeader.setOpaque(false);
+        JLabel tblTitle = new JLabel("Don OT cua ban");
+        tblTitle.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        tblHeader.add(tblTitle, BorderLayout.WEST);
+        JPanel btnPnl = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        btnPnl.setOpaque(false);
+        btnPnl.add(btnHuyDon); btnPnl.add(btnLamMoi);
+        tblHeader.add(btnPnl, BorderLayout.EAST);
+
+        JPanel tablePanel = new JPanel(new BorderLayout(0, 5));
+        tablePanel.setOpaque(false);
+        tablePanel.add(tblHeader, BorderLayout.NORTH);
+        tablePanel.add(new JScrollPane(tableDonOTCaNhan), BorderLayout.CENTER);
+
+        loadDonOTCaNhan();
+
+        btnTaoDon.addActionListener(e -> {
+            try {
+                LocalDate ngay = LocalDate.parse(txtNgayOT.getText().trim(),
+                    DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+                double soGio = Double.parseDouble(txtSoGio.getText().trim());
+                String lyDo = txtLyDo.getText().trim();
+                if (lyDo.isEmpty()) { JOptionPane.showMessageDialog(this, "Vui long nhap ly do."); return; }
+                ServiceResult<DangKyLamThem> res = svc.taoDonLamThem(maNVCaNhan, ngay, soGio, lyDo);
+                JOptionPane.showMessageDialog(this, res.getMessage());
+                if (res.isSuccess()) { txtLyDo.setText(""); loadDonOTCaNhan(); }
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(this, "Kiem tra lai ngay (dd/MM/yyyy) va so gio.", "Loi", JOptionPane.ERROR_MESSAGE);
+            }
+        });
+
+        btnHuyDon.addActionListener(e -> {
+            int row = tableDonOTCaNhan.getSelectedRow();
+            if (row < 0) { JOptionPane.showMessageDialog(this, "Chon don can huy."); return; }
+            String tt = (String) modelDonOTCaNhan.getValueAt(row, 4);
+            if (!tt.contains("Cho")) { JOptionPane.showMessageDialog(this, "Chi huy don cho duyet."); return; }
+            int maDK = (int) modelDonOTCaNhan.getValueAt(row, 0);
+            ServiceResult<Void> res = svc.xoaDonLamThem(maDK, maNVCaNhan);
+            JOptionPane.showMessageDialog(this, res.getMessage());
+            loadDonOTCaNhan();
+        });
+
+        btnLamMoi.addActionListener(e -> loadDonOTCaNhan());
+
+        p.add(topOT, BorderLayout.NORTH);
+        p.add(tablePanel, BorderLayout.CENTER);
+        return p;
+    }
+
+    private void loadDonOTCaNhan() {
+        if (maNVCaNhan < 0 || modelDonOTCaNhan == null) return;
+        modelDonOTCaNhan.setRowCount(0);
+        DateTimeFormatter f = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+        for (DangKyLamThem don : svc.getDonLamThemCuaNV(maNVCaNhan)) {
+            modelDonOTCaNhan.addRow(new Object[]{
+                don.getMaDK(),
+                don.getNgay() != null ? don.getNgay().format(f) : "-",
+                String.format("%.1f", don.getSoGio()),
+                don.getLyDo(),
+                don.getTrangThai().getDisplayName()
+            });
+        }
     }
 
     // ═══════════════════════════════════
