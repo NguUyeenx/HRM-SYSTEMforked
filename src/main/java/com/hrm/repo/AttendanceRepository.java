@@ -582,4 +582,75 @@ public class AttendanceRepository {
             ps.setInt(1, maPC); return ps.executeUpdate() > 0;
         } catch (SQLException e) { System.err.println("[DB] deleteCauHinhPC: " + e.getMessage()); return false; }
     }
+
+        // ================================================================
+    // LOOKUP NHÂN VIÊN — tra cứu theo maNhanVien (mã hiển thị)
+    // ================================================================
+
+    /**
+     * Data object chứa thông tin cơ bản nhân viên để hiển thị trên UI.
+     * Lấy từ JOIN NHANVIEN + THONGTINCANHAN + BONHIEM + CHUCVU + PHONGBAN
+     */
+    public static class NhanVienInfo {
+        public final int    maNV;           // PK nội bộ
+        public final String maNhanVien;     // Mã hiển thị (VD: NV001)
+        public final String hoTen;
+        public final String tenChucVu;
+        public final String tenPhongBan;
+        public final String trangThai;
+
+        public NhanVienInfo(int maNV, String maNhanVien, String hoTen,
+                            String tenChucVu, String tenPhongBan, String trangThai) {
+            this.maNV        = maNV;
+            this.maNhanVien  = maNhanVien;
+            this.hoTen       = hoTen != null ? hoTen : "";
+            this.tenChucVu   = tenChucVu != null ? tenChucVu : "";
+            this.tenPhongBan = tenPhongBan != null ? tenPhongBan : "";
+            this.trangThai   = trangThai != null ? trangThai : "";
+        }
+    }
+
+    /**
+     * Tra cứu nhân viên theo maNhanVien (mã hiển thị, VD: "NV001").
+     * JOIN THONGTINCANHAN + BONHIEM + CHUCVU + PHONGBAN để lấy thông tin đầy đủ.
+     * @return NhanVienInfo nếu tìm thấy, null nếu không có
+     */
+    public NhanVienInfo findNhanVienByMa(String maNhanVien) {
+        String sql = """
+            SELECT
+                nv.maNV,
+                nv.maNhanVien,
+                nv.trangThai,
+                ttcn.hoTen,
+                cv.tenChucVu,
+                pb.tenPhongBan
+            FROM NHANVIEN nv
+            LEFT JOIN THONGTINCANHAN ttcn ON nv.maNV = ttcn.maNV
+            LEFT JOIN BONHIEM bn ON nv.maNV = bn.maNV AND bn.trangThai = 'hieu_luc'
+                AND bn.loaiBoNhiem = 'chinh'
+            LEFT JOIN CHUCVU cv ON bn.maChucVu = cv.maChucVu
+            LEFT JOIN PHONGBAN pb ON bn.maPhongBan = pb.maPhongBan
+            WHERE nv.maNhanVien = ?
+            LIMIT 1
+            """;
+        try (Connection conn = DatabaseConnection.getInstance().getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, maNhanVien.trim().toUpperCase());
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return new NhanVienInfo(
+                        rs.getInt("maNV"),
+                        rs.getString("maNhanVien"),
+                        rs.getString("hoTen"),
+                        rs.getString("tenChucVu"),
+                        rs.getString("tenPhongBan"),
+                        rs.getString("trangThai")
+                    );
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("[DB] findNhanVienByMa: " + e.getMessage());
+        }
+        return null;
+    }
 }
