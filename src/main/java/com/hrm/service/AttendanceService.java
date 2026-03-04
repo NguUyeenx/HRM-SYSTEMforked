@@ -172,45 +172,74 @@ public class AttendanceService {
     }
 
     // ── TÍNH BẢNG LƯƠNG (dùng cấu hình phụ cấp) ──
+    // ── TÍNH BẢNG LƯƠNG (dùng dữ liệu thật từ DB, không dùng MockDataService) ──
     public BangLuong tinhBangLuong(int thang, int nam) {
+        // constructor BangLuong(int maNV, LocalDate, LocalDate) — giữ nguyên để compile
         LocalDate ngayBD = LocalDate.of(nam, thang, 1);
         LocalDate ngayKT = ngayBD.withDayOfMonth(ngayBD.lengthOfMonth());
         BangLuong bl = new BangLuong(0, ngayBD, ngayKT);
         bl.setTrangThai(BangLuong.TrangThai.DA_TINH);
         repository.saveBangLuong(bl);
 
-        List<CauHinhPhuCap> dsPC = repository.findCauHinhPCHoatDong();
-        List<User> allUsers = MockDataService.getInstance().getAllUsers();
+        if (bl.getMaBL() == 0) {
+            // Bảng lương tháng này đã tồn tại trong DB (unique key thang+nam)
+            // Tìm lại bảng lương đã tồn tại
+            List<BangLuong> dsbl = repository.findAllBangLuong();
+            for (BangLuong existing : dsbl) {
+                if (existing.getThang() == thang && existing.getNam() == nam) {
+                    bl.setMaBL(existing.getMaBL());
+                    break;
+                }
+            }
+        }
 
-        for (User user : allUsers) {
-            if (user.hasRole("ADMIN")) continue;
-            int maNV = user.getId();
-            double luongCB = repository.getLuongCoBan(maNV);
+        List<CauHinhPhuCap> dsPC = repository.findCauHinhPCHoatDong();
+
+        // ✅ Dùng DB thật thay vì MockDataService
+        List<com.hrm.repo.AttendanceRepository.NhanVienInfo> allNV =
+            repository.findAllNhanVienDangLamViec();
+
+        // Lấy toàn bộ chấm công tháng 1 lần để tối ưu (tránh N+1 query)
+        List<ChamCong> tatCaChamCong = repository.findByThangNam(thang, nam);
+        List<DangKyLamThem> tatCaOT  = repository.findDonOTDaDuyetTheoThang(thang, nam);
+
+        for (com.hrm.repo.AttendanceRepository.NhanVienInfo nv : allNV) {
+            int maNV = nv.maNV;
+            double luongCB   = repository.getLuongCoBan(maNV);
             double luong1Gio = luongCB / SO_NGAY_CONG_CHUAN / 8.0;
 
-            // Chấm công
-            List<ChamCong> dsChamCong = repository.findByThangNam(thang, nam).stream()
-                .filter(cc -> cc.getMaNV() == maNV && cc.hoanTat()).collect(Collectors.toList());
-            int soNgayCong = dsChamCong.size();
+            // Chấm công của NV này trong tháng
+            List<ChamCong> dsChamCong = tatCaChamCong.stream()
+                .filter(cc -> cc.getMaNV() == maNV && cc.hoanTat())
+                .collect(Collectors.toList());
+            int    soNgayCong = dsChamCong.size();
             double tongGioLam = dsChamCong.stream().mapToDouble(ChamCong::getSoGioLam).sum();
 
-            // OT đã duyệt
-            List<DangKyLamThem> dsOT = repository.findDonOTDaDuyetTheoThang(thang, nam)
-                .stream().filter(d -> d.getMaNV() == maNV).collect(Collectors.toList());
+            // OT đã duyệt của NV này
+            List<DangKyLamThem> dsOT = tatCaOT.stream()
+                .filter(d -> d.getMaNV() == maNV)
+                .collect(Collectors.toList());
             double tongGioOT = dsOT.stream().mapToDouble(DangKyLamThem::getSoGio).sum();
-            double tienOT = dsOT.stream().mapToDouble(d -> d.getSoGio() * d.getHeSoOT() * luong1Gio).sum();
+            double tienOT    = dsOT.stream()
+                .mapToDouble(d -> d.getSoGio() * d.getHeSoOT() * luong1Gio).sum();
 
             double luongChinh = soNgayCong * 8.0 * luong1Gio;
 
             ChiTietLuong ct = new ChiTietLuong();
-            ct.setMaBL(bl.getMaBL()); ct.setMaNV(maNV); ct.setTenNV(user.getFullName());
-            ct.setLuongCoBan(luongChinh); ct.setTienOT(tienOT);
-            ct.setSoNgayCong(soNgayCong); ct.setTongGioLam(tongGioLam); ct.setTongGioOT(tongGioOT);
+            ct.setMaBL(bl.getMaBL());
+            ct.setMaNV(maNV);
+            ct.setTenNV(nv.hoTen);
+            ct.setLuongCoBan(luongChinh);
+            ct.setTienOT(tienOT);
+            ct.setSoNgayCong(soNgayCong);
+            ct.setTongGioLam(tongGioLam);
+            ct.setTongGioOT(tongGioOT);
 
-            // Áp dụng cấu hình phụ cấp/khấu trừ
+            // Áp dụng cấu hình phụ cấp / khấu trừ
             for (CauHinhPhuCap pc : dsPC) {
                 double soTien = pc.tinhSoTien(luongCB);
-                ct.themThanhPhan(new ThanhPhanLuong(pc.getLoai(), pc.getTenKhoan(), soTien, pc.getNguon()));
+                ct.themThanhPhan(new ThanhPhanLuong(
+                    pc.getLoai(), pc.getTenKhoan(), soTien, pc.getNguon()));
             }
 
             ct.tinhTong();
@@ -218,8 +247,7 @@ public class AttendanceService {
             repository.saveChiTietLuong(ct);
         }
         return bl;
-    }
-
+    }    
     public List<ChiTietLuong> getChiTietLuong(int maBL) { return repository.findChiTietLuongByMaBL(maBL); }
 
     // ── SERVICE RESULT ──

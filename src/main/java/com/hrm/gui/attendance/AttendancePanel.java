@@ -90,80 +90,93 @@ public class AttendancePanel extends JPanel {
         statsPanel.setOpaque(false); statsPanel.setBorder(new EmptyBorder(5,0,0,0));
         p.add(statsPanel,BorderLayout.SOUTH); loadCC(); return p;
     }
+
     private void loadCC() {
         modelCC.setRowCount(0);
-        int th=Integer.parseInt((String)cboThang.getSelectedItem());
-        int nm=Integer.parseInt((String)cboNam.getSelectedItem());
-        List<ChamCong>ds=svc.getChamCongTheoThang(th,nm);
-        DateTimeFormatter fN=DateTimeFormatter.ofPattern("dd/MM"),fG=DateTimeFormatter.ofPattern("HH:mm");
-        for(ChamCong cc:ds) modelCC.addRow(new Object[]{cc.getMaNV(),
-            cc.getEmployeeName()!=null?cc.getEmployeeName():"NV-"+cc.getMaNV(),
-            cc.getNgay().format(fN),cc.getTenCaLam()!=null?cc.getTenCaLam():cc.getMaCaLam(),
-            cc.getGioVao()!=null?cc.getGioVao().format(fG):"-",cc.getGioRa()!=null?cc.getGioRa().format(fG):"-",
-            String.format("%.1f",cc.getSoGioLam()),cc.getGioLamThem()>0?String.format("%.1f",cc.getGioLamThem()):"-",
-            cc.getTrangThai()!=null?cc.getTrangThai().getDisplayName():"N/A"});
-        if(statsPanel==null)return;
-        long dg=ds.stream().filter(c->c.getTrangThai()==ChamCong.TrangThai.DUNG_GIO).count();
-        long dm=ds.stream().filter(c->c.getTrangThai()==ChamCong.TrangThai.DI_MUON).count();
-        long vm=ds.stream().filter(c->c.getTrangThai()==ChamCong.TrangThai.VANG_MAT).count();
+        int th = Integer.parseInt((String) cboThang.getSelectedItem());
+        int nm = Integer.parseInt((String) cboNam.getSelectedItem());
+        List<ChamCong> ds = svc.getChamCongTheoThang(th, nm);
+        DateTimeFormatter fN = DateTimeFormatter.ofPattern("dd/MM");
+        DateTimeFormatter fG = DateTimeFormatter.ofPattern("HH:mm");
+        for (ChamCong cc : ds) {
+            // ✅ Lấy maNhanVien (mã hiển thị) từ DB thay vì getMaNV() (số int)
+            String maNhanVien = com.hrm.repo.AttendanceRepository
+                .getInstance().getMaNhanVienById(cc.getMaNV());
+            modelCC.addRow(new Object[]{
+                maNhanVien,
+                cc.getEmployeeName() != null ? cc.getEmployeeName() : "NV-" + cc.getMaNV(),
+                cc.getNgay().format(fN),
+                cc.getTenCaLam() != null ? cc.getTenCaLam() : cc.getMaCaLam(),
+                cc.getGioVao() != null ? cc.getGioVao().format(fG) : "-",
+                cc.getGioRa()  != null ? cc.getGioRa().format(fG)  : "-",
+                String.format("%.1f", cc.getSoGioLam()),
+                cc.getGioLamThem() > 0 ? String.format("%.1f", cc.getGioLamThem()) : "-",
+                cc.getTrangThai() != null ? cc.getTrangThai().getDisplayName() : "N/A"
+            });
+        }
+        if (statsPanel == null) return;
+        long dg = ds.stream().filter(c -> c.getTrangThai() == ChamCong.TrangThai.DUNG_GIO).count();
+        long dm = ds.stream().filter(c -> c.getTrangThai() == ChamCong.TrangThai.DI_MUON).count();
+        long vm = ds.stream().filter(c -> c.getTrangThai() == ChamCong.TrangThai.VANG_MAT).count();
         statsPanel.removeAll();
-        statsPanel.add(lbl("Tong:",String.valueOf(ds.size()),UIColors.PRIMARY_PURPLE));
-        statsPanel.add(lbl("Dung gio:",String.valueOf(dg),UIColors.SUCCESS_GREEN));
-        statsPanel.add(lbl("Di muon:",String.valueOf(dm),UIColors.DANGER_RED));
-        statsPanel.add(lbl("Vang:",String.valueOf(vm),Color.GRAY));
-        statsPanel.revalidate();statsPanel.repaint();
-    }
+        statsPanel.add(lbl("Tong:", String.valueOf(ds.size()), UIColors.PRIMARY_PURPLE));
+        statsPanel.add(lbl("Dung gio:", String.valueOf(dg), UIColors.SUCCESS_GREEN));
+        statsPanel.add(lbl("Di muon:", String.valueOf(dm), UIColors.DANGER_RED));
+        statsPanel.add(lbl("Vang:", String.valueOf(vm), Color.GRAY));
+        statsPanel.revalidate();
+        statsPanel.repaint();
+    }    
     private void dlgThemCC() {
         JDialog d = new JDialog((Frame) SwingUtilities.getWindowAncestor(this), "Them cham cong thu cong", true);
-        d.setSize(480, 520);
+        d.setSize(500, 560);
         d.setLocationRelativeTo(this);
 
         JPanel f = new JPanel(new GridBagLayout());
         f.setBorder(new EmptyBorder(20, 20, 20, 20));
         GridBagConstraints g = gbc();
 
-        // ── Row 0: Mã nhân viên + nút Tìm ──
-        g.gridx = 0; g.gridy = 0; g.weightx = 0;
+        // ── Row 0: Mã NV + nút Tìm ──
+        g.gridx = 0; g.gridy = 0; g.weightx = 0; g.gridwidth = 1;
         f.add(new JLabel("Ma nhan vien:"), g);
-
         JTextField txtMaNV = new JTextField(12);
         txtMaNV.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         txtMaNV.setToolTipText("Nhap ma nhan vien (VD: NV001)");
         g.gridx = 1; g.weightx = 1;
         f.add(txtMaNV, g);
-
         JButton btnTim = btn("Tim", UIColors.PRIMARY_PURPLE);
         btnTim.setPreferredSize(new Dimension(70, 30));
         g.gridx = 2; g.weightx = 0;
         f.add(btnTim, g);
 
-        // ── Panel hiển thị thông tin nhân viên (ẩn mặc định) ──
+        // ── Row 1: Panel thông tin nhân viên (ẩn mặc định) ──
         JPanel infoPanel = new JPanel(new GridLayout(0, 2, 8, 6));
         infoPanel.setBackground(new Color(245, 247, 255));
         infoPanel.setBorder(BorderFactory.createCompoundBorder(
             BorderFactory.createLineBorder(UIColors.PRIMARY_PURPLE, 1),
-            new EmptyBorder(10, 12, 10, 12)
-        ));
+            new EmptyBorder(10, 12, 10, 12)));
         infoPanel.setVisible(false);
 
-        JLabel lblHoTenVal    = new JLabel(""); lblHoTenVal.setFont(new Font("Segoe UI", Font.BOLD, 13));
-        JLabel lblChucVuVal   = new JLabel(""); lblChucVuVal.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        JLabel lblPhongBanVal = new JLabel(""); lblPhongBanVal.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        JLabel lblTrangThaiVal= new JLabel(""); lblTrangThaiVal.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        JLabel lblHoTenVal     = new JLabel(""); lblHoTenVal.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        JLabel lblEmailVal     = new JLabel(""); lblEmailVal.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        JLabel lblChucVuVal    = new JLabel(""); lblChucVuVal.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        JLabel lblPhongBanVal  = new JLabel(""); lblPhongBanVal.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        JLabel lblTrangThaiVal = new JLabel(""); lblTrangThaiVal.setFont(new Font("Segoe UI", Font.PLAIN, 13));
 
-        infoPanel.add(boldLabel("Ho ten:")); infoPanel.add(lblHoTenVal);
-        infoPanel.add(boldLabel("Chuc vu:")); infoPanel.add(lblChucVuVal);
+        infoPanel.add(boldLabel("Ho ten:"));    infoPanel.add(lblHoTenVal);
+        infoPanel.add(boldLabel("Email:"));     infoPanel.add(lblEmailVal);
+        infoPanel.add(boldLabel("Chuc vu:"));   infoPanel.add(lblChucVuVal);
         infoPanel.add(boldLabel("Phong ban:")); infoPanel.add(lblPhongBanVal);
         infoPanel.add(boldLabel("Trang thai:")); infoPanel.add(lblTrangThaiVal);
 
-        g.gridx = 0; g.gridy = 1; g.gridwidth = 3; g.insets = new Insets(8, 8, 8, 8);
+        g.gridx = 0; g.gridy = 1; g.gridwidth = 3;
+        g.insets = new Insets(8, 8, 8, 8);
         f.add(infoPanel, g);
         g.gridwidth = 1; g.insets = new Insets(8, 8, 8, 8);
 
-        // ── Mảng giữ maNV tìm được (dùng trong lambda) ──
+        // Mảng giữ maNV tìm được
         int[] maNVRef = {-1};
 
-        // ── Hành động nút Tìm ──
+        // ── Hành động Tìm ──
         btnTim.addActionListener(e -> {
             String ma = txtMaNV.getText().trim();
             if (ma.isEmpty()) {
@@ -179,9 +192,9 @@ public class AttendancePanel extends JPanel {
             } else {
                 maNVRef[0] = info.maNV;
                 lblHoTenVal.setText(info.hoTen);
+                lblEmailVal.setText(info.email.isEmpty() ? "(Chua co)" : info.email);
                 lblChucVuVal.setText(info.tenChucVu.isEmpty() ? "(Chua co)" : info.tenChucVu);
                 lblPhongBanVal.setText(info.tenPhongBan.isEmpty() ? "(Chua co)" : info.tenPhongBan);
-                // Hiển thị trạng thái có màu
                 lblTrangThaiVal.setText(formatTrangThaiNV(info.trangThai));
                 lblTrangThaiVal.setForeground(
                     "dang_lam_viec".equals(info.trangThai) ? UIColors.SUCCESS_GREEN : UIColors.DANGER_RED);
@@ -189,50 +202,45 @@ public class AttendancePanel extends JPanel {
                 d.revalidate(); d.repaint();
             }
         });
+        txtMaNV.addActionListener(e -> btnTim.doClick()); // Enter = Tìm
 
-        // Cho phép nhấn Enter trong ô mã để tìm luôn
-        txtMaNV.addActionListener(e -> btnTim.doClick());
-
-        // ── Row 2: Ngày chấm công ──
-        g.gridx = 0; g.gridy = 2; g.weightx = 0;
+        // ── Row 2: Ngày ──
+        g.gridx = 0; g.gridy = 2; g.weightx = 0; g.gridwidth = 1;
         f.add(new JLabel("Ngay (dd/MM/yyyy):"), g);
-        JTextField txtNgay = new JTextField(LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
+        JTextField txtNgay = new JTextField(
+            LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
         g.gridx = 1; g.gridwidth = 2; g.weightx = 1;
         f.add(txtNgay, g);
-        g.gridwidth = 1; g.weightx = 0;
 
         // ── Row 3: Ca làm ──
-        g.gridx = 0; g.gridy = 3;
+        g.gridx = 0; g.gridy = 3; g.gridwidth = 1; g.weightx = 0;
         f.add(new JLabel("Ca lam:"), g);
         JComboBox<String> cCa = new JComboBox<>();
         for (CaLam ca : svc.getDanhSachCaLam()) cCa.addItem(ca.getMaCaLam() + " - " + ca.getTenCaLam());
         g.gridx = 1; g.gridwidth = 2; g.weightx = 1;
         f.add(cCa, g);
-        g.gridwidth = 1; g.weightx = 0;
 
         // ── Row 4: Giờ vào ──
-        g.gridx = 0; g.gridy = 4;
+        g.gridx = 0; g.gridy = 4; g.gridwidth = 1; g.weightx = 0;
         f.add(new JLabel("Gio vao (HH:mm):"), g);
         JTextField tV = new JTextField("08:00");
         g.gridx = 1; g.gridwidth = 2; g.weightx = 1;
         f.add(tV, g);
-        g.gridwidth = 1; g.weightx = 0;
 
         // ── Row 5: Giờ ra ──
-        g.gridx = 0; g.gridy = 5;
+        g.gridx = 0; g.gridy = 5; g.gridwidth = 1; g.weightx = 0;
         f.add(new JLabel("Gio ra (HH:mm):"), g);
         JTextField tR = new JTextField("17:00");
         g.gridx = 1; g.gridwidth = 2; g.weightx = 1;
         f.add(tR, g);
-        g.gridwidth = 1; g.weightx = 0;
 
         // ── Row 6: Trạng thái ──
-        g.gridx = 0; g.gridy = 6;
+        g.gridx = 0; g.gridy = 6; g.gridwidth = 1; g.weightx = 0;
         f.add(new JLabel("Trang thai:"), g);
-        JComboBox<String> cTT = new JComboBox<>(new String[]{"Dung gio", "Di muon", "Ve som", "Vang mat"});
+        JComboBox<String> cTT = new JComboBox<>(
+            new String[]{"Dung gio", "Di muon", "Ve som", "Vang mat"});
         g.gridx = 1; g.gridwidth = 2; g.weightx = 1;
         f.add(cTT, g);
-        g.gridwidth = 1; g.weightx = 0;
 
         // ── Row 7: Nút Lưu ──
         JButton bLuu = btn("Luu", UIColors.SUCCESS_GREEN);
@@ -242,7 +250,6 @@ public class AttendancePanel extends JPanel {
         g.insets = new Insets(20, 8, 8, 8);
         f.add(bLuu, g);
 
-        // ── Hành động nút Lưu ──
         ChamCong.TrangThai[] tts = {
             ChamCong.TrangThai.DUNG_GIO, ChamCong.TrangThai.DI_MUON,
             ChamCong.TrangThai.VE_SOM,   ChamCong.TrangThai.VANG_MAT
@@ -256,8 +263,6 @@ public class AttendancePanel extends JPanel {
                         "Thieu thong tin", JOptionPane.WARNING_MESSAGE);
                     return;
                 }
-
-                // Parse ngày
                 LocalDate ngay;
                 try {
                     ngay = LocalDate.parse(txtNgay.getText().trim(),
@@ -268,7 +273,6 @@ public class AttendancePanel extends JPanel {
                         "Loi", JOptionPane.ERROR_MESSAGE);
                     return;
                 }
-
                 String maCa = ((String) cCa.getSelectedItem()).split(" - ")[0].trim();
                 String[] v  = tV.getText().trim().split(":");
                 String[] r  = tR.getText().trim().split(":");
@@ -277,21 +281,17 @@ public class AttendancePanel extends JPanel {
                 cc.setMaNV(maNVRef[0]);
                 cc.setNgay(ngay);
                 cc.setMaCaLam(maCa);
-
                 CaLam caL = svc.getDanhSachCaLam().stream()
                     .filter(c -> c.getMaCaLam().equals(maCa)).findFirst().orElse(null);
                 cc.setTenCaLam(caL != null ? caL.getTenCaLam() : maCa);
-
                 cc.setGioVao(ngay.atTime(Integer.parseInt(v[0]), Integer.parseInt(v[1])));
                 cc.setGioRa(ngay.atTime(Integer.parseInt(r[0]), Integer.parseInt(r[1])));
                 cc.setSoGioLam(cc.tinhSoGioLam());
                 cc.setPhuongThucChamCong(ChamCong.PhuongThuc.THU_CONG);
                 cc.setEmployeeName(lblHoTenVal.getText());
                 cc.setTrangThai(tts[cTT.getSelectedIndex()]);
-
-                if (caL != null && cc.getSoGioLam() > caL.getSoGioChuan()) {
+                if (caL != null && cc.getSoGioLam() > caL.getSoGioChuan())
                     cc.setGioLamThem(cc.getSoGioLam() - caL.getSoGioChuan());
-                }
 
                 com.hrm.repo.AttendanceRepository.getInstance().saveChamCong(cc);
                 JOptionPane.showMessageDialog(d,
@@ -308,12 +308,7 @@ public class AttendancePanel extends JPanel {
         d.setVisible(true);
     }
 
-    /** Helper tạo JLabel in đậm */
-    private JLabel boldLabel(String text) {
-        JLabel l = new JLabel(text);
-        l.setFont(new Font("Segoe UI", Font.BOLD, 13));
-        return l;
-    }
+
 
     /** Chuyển trangThai DB → text hiển thị */
     private String formatTrangThaiNV(String tt) {
@@ -323,7 +318,16 @@ public class AttendancePanel extends JPanel {
             case "nghi_viec"     -> "Nghi viec";
             default              -> tt;
         };
-    }    // ═══════════════════════════════════
+    }    
+    /** Helper tạo JLabel in đậm */
+    private JLabel boldLabel(String text) {
+        JLabel l = new JLabel(text);
+        l.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        return l;
+    }
+
+    /** Chuyển trangThai DB → text hiển thị */
+    // ═══════════════════════════════════
     //  TAB 2 — QUẢN LÝ CA LÀM
     // ═══════════════════════════════════
     private JPanel tabCaLam() {

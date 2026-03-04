@@ -583,37 +583,36 @@ public class AttendanceRepository {
         } catch (SQLException e) { System.err.println("[DB] deleteCauHinhPC: " + e.getMessage()); return false; }
     }
 
-        // ================================================================
-    // LOOKUP NHÂN VIÊN — tra cứu theo maNhanVien (mã hiển thị)
+    // ================================================================
+    // LOOKUP NHÂN VIÊN — tra cứu theo maNhanVien (mã hiển thị, VD: NV001)
     // ================================================================
 
-    /**
-     * Data object chứa thông tin cơ bản nhân viên để hiển thị trên UI.
-     * Lấy từ JOIN NHANVIEN + THONGTINCANHAN + BONHIEM + CHUCVU + PHONGBAN
-     */
+    /** Data object chứa thông tin cơ bản nhân viên để hiển thị trên UI */
     public static class NhanVienInfo {
-        public final int    maNV;           // PK nội bộ
-        public final String maNhanVien;     // Mã hiển thị (VD: NV001)
+        public final int    maNV;
+        public final String maNhanVien;
         public final String hoTen;
+        public final String email;
         public final String tenChucVu;
         public final String tenPhongBan;
         public final String trangThai;
 
-        public NhanVienInfo(int maNV, String maNhanVien, String hoTen,
+        public NhanVienInfo(int maNV, String maNhanVien, String hoTen, String email,
                             String tenChucVu, String tenPhongBan, String trangThai) {
             this.maNV        = maNV;
             this.maNhanVien  = maNhanVien;
-            this.hoTen       = hoTen != null ? hoTen : "";
-            this.tenChucVu   = tenChucVu != null ? tenChucVu : "";
+            this.hoTen       = hoTen       != null ? hoTen       : "";
+            this.email       = email       != null ? email       : "";
+            this.tenChucVu   = tenChucVu   != null ? tenChucVu   : "";
             this.tenPhongBan = tenPhongBan != null ? tenPhongBan : "";
-            this.trangThai   = trangThai != null ? trangThai : "";
+            this.trangThai   = trangThai   != null ? trangThai   : "";
         }
     }
 
     /**
      * Tra cứu nhân viên theo maNhanVien (mã hiển thị, VD: "NV001").
-     * JOIN THONGTINCANHAN + BONHIEM + CHUCVU + PHONGBAN để lấy thông tin đầy đủ.
-     * @return NhanVienInfo nếu tìm thấy, null nếu không có
+     * JOIN THONGTINCANHAN để lấy hoTen + email,
+     * JOIN BONHIEM + CHUCVU + PHONGBAN để lấy chức vụ và phòng ban hiện tại.
      */
     public NhanVienInfo findNhanVienByMa(String maNhanVien) {
         String sql = """
@@ -622,11 +621,13 @@ public class AttendanceRepository {
                 nv.maNhanVien,
                 nv.trangThai,
                 ttcn.hoTen,
+                ttcn.email,
                 cv.tenChucVu,
                 pb.tenPhongBan
             FROM NHANVIEN nv
             LEFT JOIN THONGTINCANHAN ttcn ON nv.maNV = ttcn.maNV
-            LEFT JOIN BONHIEM bn ON nv.maNV = bn.maNV AND bn.trangThai = 'hieu_luc'
+            LEFT JOIN BONHIEM bn ON nv.maNV = bn.maNV
+                AND bn.trangThai = 'hieu_luc'
                 AND bn.loaiBoNhiem = 'chinh'
             LEFT JOIN CHUCVU cv ON bn.maChucVu = cv.maChucVu
             LEFT JOIN PHONGBAN pb ON bn.maPhongBan = pb.maPhongBan
@@ -642,6 +643,7 @@ public class AttendanceRepository {
                         rs.getInt("maNV"),
                         rs.getString("maNhanVien"),
                         rs.getString("hoTen"),
+                        rs.getString("email"),
                         rs.getString("tenChucVu"),
                         rs.getString("tenPhongBan"),
                         rs.getString("trangThai")
@@ -652,5 +654,68 @@ public class AttendanceRepository {
             System.err.println("[DB] findNhanVienByMa: " + e.getMessage());
         }
         return null;
+    }
+
+    /**
+     * Lấy danh sách tất cả nhân viên đang làm việc để tính lương.
+     * Trả về danh sách NhanVienInfo của những NV có trangThai = 'dang_lam_viec'.
+     */
+    public List<NhanVienInfo> findAllNhanVienDangLamViec() {
+        List<NhanVienInfo> list = new ArrayList<>();
+        String sql = """
+            SELECT
+                nv.maNV,
+                nv.maNhanVien,
+                nv.trangThai,
+                ttcn.hoTen,
+                ttcn.email,
+                cv.tenChucVu,
+                pb.tenPhongBan
+            FROM NHANVIEN nv
+            LEFT JOIN THONGTINCANHAN ttcn ON nv.maNV = ttcn.maNV
+            LEFT JOIN BONHIEM bn ON nv.maNV = bn.maNV
+                AND bn.trangThai = 'hieu_luc'
+                AND bn.loaiBoNhiem = 'chinh'
+            LEFT JOIN CHUCVU cv ON bn.maChucVu = cv.maChucVu
+            LEFT JOIN PHONGBAN pb ON bn.maPhongBan = pb.maPhongBan
+            WHERE nv.trangThai = 'dang_lam_viec'
+            ORDER BY nv.maNhanVien
+            """;
+        try (Connection conn = DatabaseConnection.getInstance().getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                list.add(new NhanVienInfo(
+                    rs.getInt("maNV"),
+                    rs.getString("maNhanVien"),
+                    rs.getString("hoTen"),
+                    rs.getString("email"),
+                    rs.getString("tenChucVu"),
+                    rs.getString("tenPhongBan"),
+                    rs.getString("trangThai")
+                ));
+            }
+        } catch (SQLException e) {
+            System.err.println("[DB] findAllNhanVienDangLamViec: " + e.getMessage());
+        }
+        return list;
+    }
+
+    /**
+     * Lấy maNhanVien (mã hiển thị) từ maNV (PK nội bộ).
+     * Dùng để hiển thị đúng mã trong bảng chấm công.
+     */
+    public String getMaNhanVienById(int maNV) {
+        try (Connection conn = DatabaseConnection.getInstance().getConnection();
+             PreparedStatement ps = conn.prepareStatement(
+                "SELECT maNhanVien FROM NHANVIEN WHERE maNV = ?")) {
+            ps.setInt(1, maNV);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) return rs.getString("maNhanVien");
+            }
+        } catch (SQLException e) {
+            System.err.println("[DB] getMaNhanVienById: " + e.getMessage());
+        }
+        return "NV-" + maNV;
     }
 }
