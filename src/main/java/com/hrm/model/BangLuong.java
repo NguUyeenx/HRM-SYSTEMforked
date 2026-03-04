@@ -5,9 +5,7 @@ import java.time.LocalDateTime;
 
 /**
  * Model đại diện cho bảng BANGLUONG.
- *
  * Mỗi bản ghi đại diện cho 1 kỳ lương (thường là 1 tháng).
- * Liên kết: BANGLUONG → N ChiTietLuong (mỗi NV 1 chi tiết)
  */
 public class BangLuong {
 
@@ -27,6 +25,14 @@ public class BangLuong {
 
         public String getDbValue() { return dbValue; }
         public String getDisplayName() { return displayName; }
+
+        /** Chuyển chuỗi từ DB → enum, dùng khi đọc ResultSet */
+        public static TrangThai fromDbValue(String value) {
+            for (TrangThai t : values()) {
+                if (t.dbValue.equals(value)) return t;
+            }
+            return NHAP; // fallback an toàn
+        }
     }
 
     private int maBL;
@@ -48,7 +54,6 @@ public class BangLuong {
         this.ngayKT = ngayKT;
     }
 
-    // Getters & Setters
     public int getMaBL() { return maBL; }
     public void setMaBL(int maBL) { this.maBL = maBL; }
 
@@ -69,6 +74,7 @@ public class BangLuong {
 
     @Override
     public String toString() {
-        return "BangLuong{maBL=" + maBL + ", " + ngayBD + " - " + ngayKT + ", " + trangThai.getDisplayName() + "}";
+        return "BangLuong{maBL=" + maBL + ", " + ngayBD + " - " + ngayKT
+                + ", " + trangThai.getDisplayName() + "}";
     }
 }

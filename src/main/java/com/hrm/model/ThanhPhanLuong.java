@@ -2,13 +2,7 @@ package com.hrm.model;
 
 /**
  * Model đại diện cho bảng THANHPHANLUONG.
- *
  * Mỗi bản ghi = 1 khoản thu/chi trong chi tiết lương.
- * Ví dụ:
- *   PHU_CAP  → "Phụ cấp chức vụ"     +2,000,000đ  (nguon: ChucVu)
- *   PHU_CAP  → "Phụ cấp ăn trưa"     +500,000đ    (nguon: CongTy)
- *   KHAU_TRU → "BHXH (8%)"           -800,000đ    (nguon: LuatDinhBHXH)
- *   KHAU_TRU → "Thuế TNCN"           -500,000đ    (nguon: LuatThue)
  */
 public class ThanhPhanLuong {
 
@@ -26,14 +20,22 @@ public class ThanhPhanLuong {
 
         public String getDbValue() { return dbValue; }
         public String getDisplayName() { return displayName; }
+
+        /** Chuyển chuỗi từ DB → enum, dùng khi đọc ResultSet */
+        public static Loai fromDbValue(String value) {
+            for (Loai l : values()) {
+                if (l.dbValue.equals(value)) return l;
+            }
+            return PHU_CAP; // fallback an toàn
+        }
     }
 
     private int maTp;
-    private int maCTLuong;       // FK → CHITIETLUONG
+    private int maCTLuong;
     private Loai loai;
     private String tenKhoan;
     private double soTien;
-    private String nguon;        // Nguồn gốc: ChucVu, CongTy, LuatDinh...
+    private String nguon;
 
     public ThanhPhanLuong() {}
 
@@ -44,7 +46,6 @@ public class ThanhPhanLuong {
         this.nguon = nguon;
     }
 
-    // Getters & Setters
     public int getMaTp() { return maTp; }
     public void setMaTp(int maTp) { this.maTp = maTp; }
 

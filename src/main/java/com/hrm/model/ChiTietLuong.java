@@ -3,18 +3,6 @@ package com.hrm.model;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Model đại diện cho bảng CHITIETLUONG.
- *
- * Mỗi bản ghi = lương của 1 NV trong 1 kỳ lương.
- * Liên kết:
- *   BANGLUONG (1) → (N) CHITIETLUONG
- *   CHITIETLUONG (1) → (N) THANHPHANLUONG
- *
- * CÔNG THỨC:
- *   tongLuong     = luongCoBan + tongLuongChucVu + tienOT
- *   luongThucNhan = tongLuong - tongKhauTru
- */
 public class ChiTietLuong {
 
     public enum TrangThai {
@@ -32,22 +20,27 @@ public class ChiTietLuong {
 
         public String getDbValue() { return dbValue; }
         public String getDisplayName() { return displayName; }
+
+        public static TrangThai fromDbValue(String value) {
+            for (TrangThai t : values()) {
+                if (t.dbValue.equals(value)) return t;
+            }
+            return CHUA_TINH;
+        }
     }
 
     private int maChiTietLuong;
-    private int maBL;            // FK → BANGLUONG
-    private int maNV;            // FK → NHANVIEN
-    private String tenNV;        // Transient — để hiển thị
+    private int maBL;
+    private int maNV;
+    private String tenNV;
 
-    // Các khoản lương
     private double luongCoBan;
-    private double tongLuongChucVu;   // Phụ cấp chức vụ
-    private double tienOT;            // Tiền OT (tính từ DangKyLamThem đã duyệt)
-    private double tongKhauTru;       // BHXH, BHYT, thuế...
-    private double tongLuong;         // = luongCoBan + tongLuongChucVu + tienOT
-    private double luongThucNhan;     // = tongLuong - tongKhauTru
+    private double tongLuongChucVu;
+    private double tienOT;
+    private double tongKhauTru;
+    private double tongLuong;
+    private double luongThucNhan;
 
-    // Thông tin chấm công
     private int soNgayCong;
     private double tongGioLam;
     private double tongGioOT;
@@ -60,14 +53,11 @@ public class ChiTietLuong {
         this.danhSachThanhPhan = new ArrayList<>();
     }
 
-    /** Tính tổng lương và lương thực nhận */
     public void tinhTong() {
-        // Tổng phụ cấp
         double tongPhuCap = danhSachThanhPhan.stream()
                 .filter(tp -> tp.getLoai() == ThanhPhanLuong.Loai.PHU_CAP)
                 .mapToDouble(ThanhPhanLuong::getSoTien).sum();
 
-        // Tổng khấu trừ
         double tongTru = danhSachThanhPhan.stream()
                 .filter(tp -> tp.getLoai() == ThanhPhanLuong.Loai.KHAU_TRU)
                 .mapToDouble(ThanhPhanLuong::getSoTien).sum();
@@ -78,7 +68,11 @@ public class ChiTietLuong {
         this.luongThucNhan = tongLuong - tongKhauTru;
     }
 
-    // Getters & Setters
+    /** Thêm 1 thành phần lương (phụ cấp hoặc khấu trừ) vào danh sách */
+    public void themThanhPhan(ThanhPhanLuong tp) {
+        this.danhSachThanhPhan.add(tp);
+    }
+
     public int getMaChiTietLuong() { return maChiTietLuong; }
     public void setMaChiTietLuong(int maChiTietLuong) { this.maChiTietLuong = maChiTietLuong; }
 
@@ -122,9 +116,9 @@ public class ChiTietLuong {
     public void setTrangThai(TrangThai trangThai) { this.trangThai = trangThai; }
 
     public List<ThanhPhanLuong> getDanhSachThanhPhan() { return danhSachThanhPhan; }
-    public void setDanhSachThanhPhan(List<ThanhPhanLuong> ds) { this.danhSachThanhPhan = ds; }
-
-    public void themThanhPhan(ThanhPhanLuong tp) { this.danhSachThanhPhan.add(tp); }
+    public void setDanhSachThanhPhan(List<ThanhPhanLuong> danhSachThanhPhan) {
+        this.danhSachThanhPhan = danhSachThanhPhan;
+    }
 
     @Override
     public String toString() {
