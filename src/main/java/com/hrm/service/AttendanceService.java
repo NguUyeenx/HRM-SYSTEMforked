@@ -171,21 +171,20 @@ public class AttendanceService {
         return ServiceResult.success(null, "Da ngung khoan '" + pc.getTenKhoan() + "'.");
     }
 
-    // ── TÍNH BẢNG LƯƠNG (dùng cấu hình phụ cấp) ──
-    // ── TÍNH BẢNG LƯƠNG (dùng dữ liệu thật từ DB, không dùng MockDataService) ──
+    // ── TÍNH BẢNG LƯƠNG ──
     public BangLuong tinhBangLuong(int thang, int nam) {
-        // constructor BangLuong(int maNV, LocalDate, LocalDate) — giữ nguyên để compile
         LocalDate ngayBD = LocalDate.of(nam, thang, 1);
         LocalDate ngayKT = ngayBD.withDayOfMonth(ngayBD.lengthOfMonth());
+
+        // Tạo hoặc lấy lại bảng lương đã có cho tháng này
         BangLuong bl = new BangLuong(0, ngayBD, ngayKT);
         bl.setTrangThai(BangLuong.TrangThai.DA_TINH);
         repository.saveBangLuong(bl);
 
+        // Nếu maBL = 0 → INSERT bị lỗi duplicate (bảng lương tháng này đã tồn tại)
+        // → tìm lại bảng lương đã có
         if (bl.getMaBL() == 0) {
-            // Bảng lương tháng này đã tồn tại trong DB (unique key thang+nam)
-            // Tìm lại bảng lương đã tồn tại
-            List<BangLuong> dsbl = repository.findAllBangLuong();
-            for (BangLuong existing : dsbl) {
+            for (BangLuong existing : repository.findAllBangLuong()) {
                 if (existing.getThang() == thang && existing.getNam() == nam) {
                     bl.setMaBL(existing.getMaBL());
                     break;
@@ -195,27 +194,27 @@ public class AttendanceService {
 
         List<CauHinhPhuCap> dsPC = repository.findCauHinhPCHoatDong();
 
-        // ✅ Dùng DB thật thay vì MockDataService
-        List<com.hrm.repo.AttendanceRepository.NhanVienInfo> allNV =
-            repository.findAllNhanVienDangLamViec();
+        // ✅ Chỉ lấy NV có chấm công trong tháng này (không tính người vắng cả tháng)
+        List<com.hrm.repo.AttendanceRepository.NhanVienInfo> dsNV =
+            repository.findNhanVienCoChamCong(thang, nam);
 
-        // Lấy toàn bộ chấm công tháng 1 lần để tối ưu (tránh N+1 query)
-        List<ChamCong> tatCaChamCong = repository.findByThangNam(thang, nam);
-        List<DangKyLamThem> tatCaOT  = repository.findDonOTDaDuyetTheoThang(thang, nam);
+        if (dsNV.isEmpty()) return bl; // Không có ai chấm công → trả về luôn
 
-        for (com.hrm.repo.AttendanceRepository.NhanVienInfo nv : allNV) {
-            int maNV = nv.maNV;
+        // Lấy toàn bộ chấm công + OT 1 lần để tránh N+1 query
+        List<ChamCong>       tatCaCC  = repository.findByThangNam(thang, nam);
+        List<DangKyLamThem>  tatCaOT  = repository.findDonOTDaDuyetTheoThang(thang, nam);
+
+        for (com.hrm.repo.AttendanceRepository.NhanVienInfo nv : dsNV) {
+            int    maNV      = nv.maNV;
             double luongCB   = repository.getLuongCoBan(maNV);
             double luong1Gio = luongCB / SO_NGAY_CONG_CHUAN / 8.0;
 
-            // Chấm công của NV này trong tháng
-            List<ChamCong> dsChamCong = tatCaChamCong.stream()
+            List<ChamCong> dsChamCong = tatCaCC.stream()
                 .filter(cc -> cc.getMaNV() == maNV && cc.hoanTat())
                 .collect(Collectors.toList());
             int    soNgayCong = dsChamCong.size();
             double tongGioLam = dsChamCong.stream().mapToDouble(ChamCong::getSoGioLam).sum();
 
-            // OT đã duyệt của NV này
             List<DangKyLamThem> dsOT = tatCaOT.stream()
                 .filter(d -> d.getMaNV() == maNV)
                 .collect(Collectors.toList());
@@ -235,13 +234,11 @@ public class AttendanceService {
             ct.setTongGioLam(tongGioLam);
             ct.setTongGioOT(tongGioOT);
 
-            // Áp dụng cấu hình phụ cấp / khấu trừ
             for (CauHinhPhuCap pc : dsPC) {
                 double soTien = pc.tinhSoTien(luongCB);
                 ct.themThanhPhan(new ThanhPhanLuong(
                     pc.getLoai(), pc.getTenKhoan(), soTien, pc.getNguon()));
             }
-
             ct.tinhTong();
             ct.setTrangThai(ChiTietLuong.TrangThai.DA_TINH);
             repository.saveChiTietLuong(ct);

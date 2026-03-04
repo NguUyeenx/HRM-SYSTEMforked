@@ -41,6 +41,9 @@ public class AttendancePanel extends JPanel {
     private JComboBox<String> cboThangL, cboNamL;
     private JPanel luongStats;
     private BangLuong bangLuongHienTai;
+        // Thêm vào phần khai báo field (cùng chỗ với các field Tab 4 hiện có)
+    private JSpinner spinnerThangRef;
+    private JSpinner spinnerNamRef;
     // Tab 5
     private JTable tablePC; private DefaultTableModel modelPC;
 
@@ -414,12 +417,27 @@ public class AttendancePanel extends JPanel {
         info.setBorder(new EmptyBorder(5,0,0,0));
         info.add(lbl("He so:","x1.5 (thuong), x2.0 (cuoi tuan), x3.0 (le)",UIColors.TEXT_DARK));
         p.add(info,BorderLayout.SOUTH);return p;}
-    private void loadOT(){modelOT.setRowCount(0);DateTimeFormatter f=DateTimeFormatter.ofPattern("dd/MM/yyyy");
-        for(DangKyLamThem don:com.hrm.repo.AttendanceRepository.getInstance().findAllDonOT())
-            modelOT.addRow(new Object[]{don.getMaDK(),don.getMaNV(),
-                don.getNgay()!=null?don.getNgay().format(f):"-",String.format("%.1f",don.getSoGio()),
-                "x"+don.getHeSoOT(),don.getLyDo(),don.getTrangThai().getDisplayName(),
-                don.getApproverName()!=null?don.getApproverName():"-"});}
+    private void loadOT() {
+        modelOT.setRowCount(0);
+        DateTimeFormatter f = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+        for (DangKyLamThem don : com.hrm.repo.AttendanceRepository.getInstance().findAllDonOT()) {
+            // ✅ Hiển thị maNhanVien (VD: NV001) thay vì số int
+            String maNhanVien = com.hrm.repo.AttendanceRepository
+                .getInstance().getMaNhanVienById(don.getMaNV());
+            String tenNV = don.getEmployeeName() != null
+                ? don.getEmployeeName() : maNhanVien;
+            modelOT.addRow(new Object[]{
+                don.getMaDK(),
+                maNhanVien + " - " + tenNV,
+                don.getNgay() != null ? don.getNgay().format(f) : "-",
+                String.format("%.1f", don.getSoGio()),
+                "x" + don.getHeSoOT(),
+                don.getLyDo(),
+                don.getTrangThai().getDisplayName(),
+                don.getApproverName() != null ? don.getApproverName() : "-"
+            });
+        }
+    }                
     private void duyetOT(){int row=tableDonOT.getSelectedRow();
         if(row<0){JOptionPane.showMessageDialog(this,"Chon don.");return;}
         int maDK=(int)modelOT.getValueAt(row,0);String tt=(String)modelOT.getValueAt(row,6);
@@ -446,91 +464,229 @@ public class AttendancePanel extends JPanel {
     // ═══════════════════════════════════
     //  TAB 4 — BẢNG LƯƠNG
     // ═══════════════════════════════════
-    private JPanel tabBangLuong(){JPanel p=panel();
-        JPanel tb=new JPanel(new FlowLayout(FlowLayout.LEFT,10,5));tb.setOpaque(false);
-        tb.add(new JLabel("Thang:"));cboThangL=combMonth();tb.add(cboThangL);
-        tb.add(new JLabel("Nam:"));cboNamL=combYear();tb.add(cboNamL);
-        JButton bTinh=btn("Tinh luong",UIColors.PRIMARY_PURPLE);bTinh.addActionListener(e->loadLuong());tb.add(bTinh);
-        tb.add(Box.createHorizontalStrut(20));
-        JButton bCT=btn("Xem chi tiet",UIColors.INFO_BLUE);bCT.addActionListener(e->xemChiTiet());tb.add(bCT);
-        p.add(tb,BorderLayout.NORTH);
-        String[]cols={"Ma NV","Ho ten","Luong co ban","Ngay cong","Gio lam","Gio OT",
-            "Phu cap","Khau tru","Tien OT","Tong luong","Thuc nhan","Trang thai"};
-        modelLuong=mdl(cols);tableLuong=tbl(modelLuong);
-        DefaultTableCellRenderer mR=new DefaultTableCellRenderer(){
-            @Override public Component getTableCellRendererComponent(JTable t,Object v,boolean s,boolean f,int r,int c){
-                super.getTableCellRendererComponent(t,v,s,f,r,c);setHorizontalAlignment(RIGHT);setForeground(Color.BLACK);return this;}};
-        for(int i:new int[]{2,6,7,8,9})tableLuong.getColumnModel().getColumn(i).setCellRenderer(mR);
-        tableLuong.getColumnModel().getColumn(10).setCellRenderer(new DefaultTableCellRenderer(){
-            @Override public Component getTableCellRendererComponent(JTable t,Object v,boolean s,boolean f,int r,int c){
-                super.getTableCellRendererComponent(t,v,s,f,r,c);setHorizontalAlignment(RIGHT);
-                setFont(new Font("Segoe UI",Font.BOLD,13));setForeground(UIColors.PRIMARY_PURPLE);return this;}});
+    // ═══════════════════════════════════
+    //  TAB BẢNG LƯƠNG
+    // ═══════════════════════════════════
+    private JPanel tabBangLuong() {
+        JPanel p = panel();
+
+        // ── Toolbar: chọn tháng/năm cải tiến ──
+        JPanel tb = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 8));
+        tb.setOpaque(false);
+
+        // Tháng: spinner thay vì combobox string
+        tb.add(new JLabel("Thang:"));
+        SpinnerNumberModel smThang = new SpinnerNumberModel(
+            LocalDate.now().getMonthValue(), 1, 12, 1);
+        JSpinner spinThang = new JSpinner(smThang);
+        spinThang.setPreferredSize(new Dimension(60, 30));
+        ((JSpinner.DefaultEditor) spinThang.getEditor()).getTextField()
+            .setHorizontalAlignment(JTextField.CENTER);
+        tb.add(spinThang);
+
+        // Năm: spinner từ 2020 đến năm hiện tại + 1
+        tb.add(new JLabel("Nam:"));
+        SpinnerNumberModel smNam = new SpinnerNumberModel(
+            LocalDate.now().getYear(), 2020, LocalDate.now().getYear() + 1, 1);
+        JSpinner spinNam = new JSpinner(smNam);
+        spinNam.setPreferredSize(new Dimension(80, 30));
+        ((JSpinner.DefaultEditor) spinNam.getEditor()).getTextField()
+            .setHorizontalAlignment(JTextField.CENTER);
+        tb.add(spinNam);
+
+        // Label hiển thị tháng/năm đang xem
+        JLabel lblThangNam = new JLabel();
+        lblThangNam.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        lblThangNam.setForeground(UIColors.PRIMARY_PURPLE);
+        Runnable capNhatLabel = () -> lblThangNam.setText(
+            String.format("Thang %02d/%d",
+                (int) spinThang.getValue(), (int) spinNam.getValue()));
+        capNhatLabel.run();
+        spinThang.addChangeListener(e -> capNhatLabel.run());
+        spinNam.addChangeListener(e -> capNhatLabel.run());
+        tb.add(lblThangNam);
+
+        tb.add(Box.createHorizontalStrut(10));
+        JButton bTinh = btn("Tinh / Lam moi luong", UIColors.PRIMARY_PURPLE);
+        tb.add(bTinh);
+        tb.add(Box.createHorizontalStrut(10));
+        JButton bCT = btn("Xem chi tiet", UIColors.INFO_BLUE);
+        tb.add(bCT);
+
+        p.add(tb, BorderLayout.NORTH);
+
+        // ── Bảng ──
+        String[] cols = {"Ma NV", "Ho ten", "Luong co ban", "Ngay cong",
+            "Gio lam", "Gio OT", "Phu cap", "Khau tru",
+            "Tien OT", "Tong luong", "Thuc nhan", "Trang thai"};
+        modelLuong = mdl(cols);
+        tableLuong = tbl(modelLuong);
+
+        DefaultTableCellRenderer rightR = new DefaultTableCellRenderer() {
+            @Override public Component getTableCellRendererComponent(
+                    JTable t, Object v, boolean s, boolean f, int r, int c) {
+                super.getTableCellRendererComponent(t, v, s, f, r, c);
+                setHorizontalAlignment(RIGHT); setForeground(Color.BLACK); return this;
+            }
+        };
+        for (int i : new int[]{2, 6, 7, 8, 9}) tableLuong.getColumnModel().getColumn(i).setCellRenderer(rightR);
+        tableLuong.getColumnModel().getColumn(10).setCellRenderer(new DefaultTableCellRenderer() {
+            @Override public Component getTableCellRendererComponent(
+                    JTable t, Object v, boolean s, boolean f, int r, int c) {
+                super.getTableCellRendererComponent(t, v, s, f, r, c);
+                setHorizontalAlignment(RIGHT);
+                setFont(new Font("Segoe UI", Font.BOLD, 13));
+                setForeground(UIColors.PRIMARY_PURPLE); return this;
+            }
+        });
         tableLuong.getColumnModel().getColumn(11).setCellRenderer(new StatusR());
-        p.add(new JScrollPane(tableLuong),BorderLayout.CENTER);
-        luongStats=new JPanel(new FlowLayout(FlowLayout.LEFT,30,10));
-        luongStats.setOpaque(false);luongStats.setBorder(new EmptyBorder(5,0,0,0));
-        p.add(luongStats,BorderLayout.SOUTH);loadLuong();return p;}
+        p.add(new JScrollPane(tableLuong), BorderLayout.CENTER);
 
-    private void loadLuong(){modelLuong.setRowCount(0);
-        int th=Integer.parseInt((String)cboThangL.getSelectedItem());
-        int nm=Integer.parseInt((String)cboNamL.getSelectedItem());
-        bangLuongHienTai=svc.tinhBangLuong(th,nm);
-        List<ChiTietLuong>ds=svc.getChiTietLuong(bangLuongHienTai.getMaBL());
-        double tQ=0,tO=0,tK=0;
-        for(ChiTietLuong ct:ds){modelLuong.addRow(new Object[]{ct.getMaNV(),ct.getTenNV(),
-            fmtTien(ct.getLuongCoBan()),ct.getSoNgayCong(),String.format("%.1f",ct.getTongGioLam()),
-            ct.getTongGioOT()>0?String.format("%.1f",ct.getTongGioOT()):"-",
-            fmtTien(ct.getTongLuongChucVu()),fmtTien(ct.getTongKhauTru()),
-            ct.getTienOT()>0?fmtTien(ct.getTienOT()):"-",
-            fmtTien(ct.getTongLuong()),fmtTien(ct.getLuongThucNhan()),ct.getTrangThai().getDisplayName()});
-            tQ+=ct.getLuongThucNhan();tO+=ct.getTienOT();tK+=ct.getTongKhauTru();}
-        if(luongStats==null)return;luongStats.removeAll();
-        luongStats.add(lbl("NV:",String.valueOf(ds.size()),UIColors.PRIMARY_PURPLE));
-        luongStats.add(lbl("Tong quy:",fmtTien(tQ),UIColors.SUCCESS_GREEN));
-        luongStats.add(lbl("Tong OT:",fmtTien(tO),UIColors.INFO_BLUE));
-        luongStats.add(lbl("Tong khau tru:",fmtTien(tK),UIColors.DANGER_RED));
-        luongStats.revalidate();luongStats.repaint();}
+        luongStats = new JPanel(new FlowLayout(FlowLayout.LEFT, 30, 10));
+        luongStats.setOpaque(false);
+        luongStats.setBorder(new EmptyBorder(5, 0, 0, 0));
+        p.add(luongStats, BorderLayout.SOUTH);
 
-    private void xemChiTiet(){int row=tableLuong.getSelectedRow();
-        if(row<0){JOptionPane.showMessageDialog(this,"Chon NV de xem.");return;}
-        if(bangLuongHienTai==null){JOptionPane.showMessageDialog(this,"Chua tinh luong.");return;}
-        int maNV=(int)modelLuong.getValueAt(row,0);String tenNV=(String)modelLuong.getValueAt(row,1);
-        List<ChiTietLuong>dsCT=svc.getChiTietLuong(bangLuongHienTai.getMaBL());
-        ChiTietLuong ct=dsCT.stream().filter(c->c.getMaNV()==maNV).findFirst().orElse(null);
-        if(ct==null){JOptionPane.showMessageDialog(this,"Khong tim thay.");return;}
-        JDialog d=new JDialog((Frame)SwingUtilities.getWindowAncestor(this),"Chi tiet luong: "+tenNV,true);
-        d.setSize(650,500);d.setLocationRelativeTo(this);
-        JPanel main=new JPanel(new BorderLayout(0,10));main.setBorder(new EmptyBorder(15,15,15,15));
-        main.setBackground(UIColors.WHITE);
-        JPanel info=new JPanel(new GridLayout(0,2,10,5));info.setOpaque(false);info.setBorder(new EmptyBorder(0,0,10,0));
-        info.add(new JLabel("Nhan vien: "+tenNV));info.add(new JLabel("Ma NV: "+maNV));
-        info.add(new JLabel("Luong co ban: "+fmtTien(ct.getLuongCoBan())));
-        info.add(new JLabel("Ngay cong: "+ct.getSoNgayCong()));
-        info.add(new JLabel("Tong gio: "+String.format("%.1f",ct.getTongGioLam())));
-        info.add(new JLabel("Gio OT: "+String.format("%.1f",ct.getTongGioOT())));
-        main.add(info,BorderLayout.NORTH);
-        String[]cols={"Loai","Ten khoan","So tien","Nguon"};
-        DefaultTableModel mdlTP=new DefaultTableModel(cols,0){public boolean isCellEditable(int r,int c){return false;}};
-        JTable tblTP=tbl(mdlTP);
-        tblTP.getColumnModel().getColumn(0).setCellRenderer(new DefaultTableCellRenderer(){
-            @Override public Component getTableCellRendererComponent(JTable t,Object v,boolean s,boolean f,int r,int c){
-                super.getTableCellRendererComponent(t,v,s,f,r,c);String str=v!=null?v.toString():"";
-                setForeground(str.contains("cap")?UIColors.SUCCESS_GREEN:UIColors.DANGER_RED);
-                setFont(new Font("Segoe UI",Font.BOLD,13));setHorizontalAlignment(CENTER);return this;}});
-        tblTP.getColumnModel().getColumn(2).setCellRenderer(new DefaultTableCellRenderer(){
-            @Override public Component getTableCellRendererComponent(JTable t,Object v,boolean s,boolean f,int r,int c){
-                super.getTableCellRendererComponent(t,v,s,f,r,c);setHorizontalAlignment(RIGHT);setForeground(Color.BLACK);return this;}});
-        for(ThanhPhanLuong tp:ct.getDanhSachThanhPhan()){String px=tp.getLoai()==ThanhPhanLuong.Loai.PHU_CAP?"+":"-";
-            mdlTP.addRow(new Object[]{tp.getLoai().getDisplayName(),tp.getTenKhoan(),px+" "+fmtTien(tp.getSoTien()),tp.getNguon()});}
-        if(ct.getTienOT()>0)mdlTP.addRow(new Object[]{"Phu cap","Tien OT","+ "+fmtTien(ct.getTienOT()),"ChamCong"});
-        main.add(new JScrollPane(tblTP),BorderLayout.CENTER);
-        JPanel ft=new JPanel(new GridLayout(0,2,10,5));ft.setOpaque(false);ft.setBorder(new EmptyBorder(10,0,0,0));
-        JLabel lT=new JLabel("Tong luong: "+fmtTien(ct.getTongLuong()));lT.setFont(new Font("Segoe UI",Font.BOLD,14));
-        JLabel lK=new JLabel("Khau tru: -"+fmtTien(ct.getTongKhauTru()));lK.setFont(new Font("Segoe UI",Font.BOLD,14));lK.setForeground(UIColors.DANGER_RED);
-        JLabel lN=new JLabel("THUC NHAN: "+fmtTien(ct.getLuongThucNhan()));lN.setFont(new Font("Segoe UI",Font.BOLD,16));lN.setForeground(UIColors.PRIMARY_PURPLE);
-        ft.add(lT);ft.add(lK);ft.add(lN);main.add(ft,BorderLayout.SOUTH);
-        d.setContentPane(main);d.setVisible(true);}
+        // ── Sự kiện ──
+        bTinh.addActionListener(e -> loadLuongFromSpinner(spinThang, spinNam));
+        bCT.addActionListener(e -> xemChiTiet());
 
+        // Load tháng hiện tại lúc khởi động
+        loadLuongFromSpinner(spinThang, spinNam);
+        return p;
+    }
+
+    /** Lấy thang/nam từ spinner và gọi loadLuong */
+    private void loadLuongFromSpinner(JSpinner spinThang, JSpinner spinNam) {
+        // Lưu lại spinner reference để xemChiTiet() dùng được
+        spinnerThangRef = spinThang;
+        spinnerNamRef   = spinNam;
+        int th = (int) spinThang.getValue();
+        int nm = (int) spinNam.getValue();
+        loadLuong(th, nm);
+    }
+
+    private void loadLuong(int th, int nm) {
+        modelLuong.setRowCount(0);
+        bangLuongHienTai = svc.tinhBangLuong(th, nm);
+        List<ChiTietLuong> ds = svc.getChiTietLuong(bangLuongHienTai.getMaBL());
+
+        if (ds.isEmpty()) {
+            if (luongStats != null) {
+                luongStats.removeAll();
+                luongStats.add(lbl("Thang " + th + "/" + nm + ":",
+                    "Chua co du lieu cham cong", Color.GRAY));
+                luongStats.revalidate(); luongStats.repaint();
+            }
+            return;
+        }
+
+        double tQ = 0, tO = 0, tK = 0;
+        for (ChiTietLuong ct : ds) {
+            // ✅ Hiển thị maNhanVien thay vì số int
+            String maNhanVien = com.hrm.repo.AttendanceRepository
+                .getInstance().getMaNhanVienById(ct.getMaNV());
+            modelLuong.addRow(new Object[]{
+                maNhanVien,
+                ct.getTenNV(),
+                fmtTien(ct.getLuongCoBan()),
+                ct.getSoNgayCong(),
+                String.format("%.1f", ct.getTongGioLam()),
+                ct.getTongGioOT() > 0 ? String.format("%.1f", ct.getTongGioOT()) : "-",
+                fmtTien(ct.getTongLuongChucVu()),
+                fmtTien(ct.getTongKhauTru()),
+                ct.getTienOT() > 0 ? fmtTien(ct.getTienOT()) : "-",
+                fmtTien(ct.getTongLuong()),
+                fmtTien(ct.getLuongThucNhan()),
+                ct.getTrangThai().getDisplayName()
+            });
+            tQ += ct.getLuongThucNhan();
+            tO += ct.getTienOT();
+            tK += ct.getTongKhauTru();
+        }
+
+        if (luongStats == null) return;
+        luongStats.removeAll();
+        luongStats.add(lbl("Nhan vien:", String.valueOf(ds.size()), UIColors.PRIMARY_PURPLE));
+        luongStats.add(lbl("Tong quy luong:", fmtTien(tQ), UIColors.SUCCESS_GREEN));
+        luongStats.add(lbl("Tong tien OT:", fmtTien(tO), UIColors.INFO_BLUE));
+        luongStats.add(lbl("Tong khau tru:", fmtTien(tK), UIColors.DANGER_RED));
+        luongStats.revalidate(); luongStats.repaint();
+    } 
+
+    private void xemChiTiet() {
+        int row = tableLuong.getSelectedRow();
+        if (row < 0) { JOptionPane.showMessageDialog(this, "Chon nhan vien de xem."); return; }
+        if (bangLuongHienTai == null) { JOptionPane.showMessageDialog(this, "Chua tinh luong."); return; }
+
+        // Cột 0 giờ là maNhanVien (String), cột 1 là tên
+        String maNhanVienHienThi = (String) modelLuong.getValueAt(row, 0);
+        String tenNV = (String) modelLuong.getValueAt(row, 1);
+
+        List<ChiTietLuong> dsCT = svc.getChiTietLuong(bangLuongHienTai.getMaBL());
+        // Tìm ChiTietLuong khớp với maNhanVien đang hiển thị
+        ChiTietLuong ct = dsCT.stream()
+            .filter(c -> com.hrm.repo.AttendanceRepository.getInstance()
+                .getMaNhanVienById(c.getMaNV()).equals(maNhanVienHienThi))
+            .findFirst().orElse(null);
+
+        if (ct == null) { JOptionPane.showMessageDialog(this, "Khong tim thay chi tiet."); return; }
+
+        JDialog d = new JDialog((Frame) SwingUtilities.getWindowAncestor(this),
+            "Chi tiet luong: " + tenNV, true);
+        d.setSize(650, 500);
+        d.setLocationRelativeTo(this);
+
+        // ── Thông tin tổng hợp ──
+        JPanel info = new JPanel(new GridLayout(0, 2, 10, 8));
+        info.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createTitledBorder("Tong hop"),
+            new EmptyBorder(10, 10, 10, 10)));
+
+        info.add(boldLabel("Nhan vien:")); info.add(new JLabel(tenNV));
+        info.add(boldLabel("Ma NV:"));     info.add(new JLabel(maNhanVienHienThi));
+        info.add(boldLabel("Ngay cong:")); info.add(new JLabel(String.valueOf((int) ct.getSoNgayCong())));
+        info.add(boldLabel("Gio lam:"));   info.add(new JLabel(String.format("%.1f", ct.getTongGioLam())));
+        info.add(boldLabel("Gio OT:"));    info.add(new JLabel(String.format("%.1f", ct.getTongGioOT())));
+        info.add(boldLabel("Luong chinh:")); info.add(new JLabel(fmtTien(ct.getLuongCoBan())));
+        info.add(boldLabel("Tien OT:"));   info.add(new JLabel(fmtTien(ct.getTienOT())));
+        info.add(boldLabel("Phu cap:"));   info.add(new JLabel(fmtTien(ct.getTongLuongChucVu())));
+        info.add(boldLabel("Khau tru:"));  info.add(new JLabel(fmtTien(ct.getTongKhauTru())));
+        info.add(boldLabel("Tong thu nhap:")); info.add(new JLabel(fmtTien(ct.getTongLuong())));
+        JLabel lblThucNhan = new JLabel(fmtTien(ct.getLuongThucNhan()));
+        lblThucNhan.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        lblThucNhan.setForeground(UIColors.PRIMARY_PURPLE);
+        info.add(boldLabel("THUC NHAN:")); info.add(lblThucNhan);
+
+        // ── Bảng thành phần ──
+        String[] cols = {"Loai", "Ten khoan", "So tien"};
+        DefaultTableModel mTP = new DefaultTableModel(cols, 0) {
+            public boolean isCellEditable(int r, int c) { return false; }
+        };
+        for (ThanhPhanLuong tp : ct.getDanhSachThanhPhan()) {
+            mTP.addRow(new Object[]{
+                tp.getLoai().getDisplayName(), tp.getTenKhoan(), fmtTien(tp.getSoTien())
+            });
+        }
+        JTable tbl = new JTable(mTP);
+        tbl.setRowHeight(28);
+        tbl.getTableHeader().setBackground(UIColors.PRIMARY_PURPLE);
+        tbl.getTableHeader().setForeground(Color.WHITE);
+
+        JPanel main = new JPanel(new BorderLayout(10, 10));
+        main.setBorder(new EmptyBorder(15, 15, 15, 15));
+        main.add(info, BorderLayout.NORTH);
+        main.add(new JScrollPane(tbl), BorderLayout.CENTER);
+
+        JButton btnDong = btn("Dong", UIColors.PRIMARY_PURPLE);
+        btnDong.addActionListener(e -> d.dispose());
+        JPanel btnP = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        btnP.add(btnDong);
+        main.add(btnP, BorderLayout.SOUTH);
+
+        d.setContentPane(main);
+        d.setVisible(true);
+    }        
     // ═══════════════════════════════════════════════
     //  TAB 5 — QUẢN LÝ PHỤ CẤP & KHẤU TRỪ
     // ═══════════════════════════════════════════════

@@ -584,15 +584,14 @@ public class AttendanceRepository {
     }
 
     // ================================================================
-    // LOOKUP NHÂN VIÊN — tra cứu theo maNhanVien (mã hiển thị, VD: NV001)
+    // LOOKUP NHÂN VIÊN
     // ================================================================
 
-    /** Data object chứa thông tin cơ bản nhân viên để hiển thị trên UI */
     public static class NhanVienInfo {
         public final int    maNV;
         public final String maNhanVien;
         public final String hoTen;
-        public final String email;
+        public final String email;          // ← thêm mới
         public final String tenChucVu;
         public final String tenPhongBan;
         public final String trangThai;
@@ -609,102 +608,7 @@ public class AttendanceRepository {
         }
     }
 
-    /**
-     * Tra cứu nhân viên theo maNhanVien (mã hiển thị, VD: "NV001").
-     * JOIN THONGTINCANHAN để lấy hoTen + email,
-     * JOIN BONHIEM + CHUCVU + PHONGBAN để lấy chức vụ và phòng ban hiện tại.
-     */
-    public NhanVienInfo findNhanVienByMa(String maNhanVien) {
-        String sql = """
-            SELECT
-                nv.maNV,
-                nv.maNhanVien,
-                nv.trangThai,
-                ttcn.hoTen,
-                ttcn.email,
-                cv.tenChucVu,
-                pb.tenPhongBan
-            FROM NHANVIEN nv
-            LEFT JOIN THONGTINCANHAN ttcn ON nv.maNV = ttcn.maNV
-            LEFT JOIN BONHIEM bn ON nv.maNV = bn.maNV
-                AND bn.trangThai = 'hieu_luc'
-                AND bn.loaiBoNhiem = 'chinh'
-            LEFT JOIN CHUCVU cv ON bn.maChucVu = cv.maChucVu
-            LEFT JOIN PHONGBAN pb ON bn.maPhongBan = pb.maPhongBan
-            WHERE nv.maNhanVien = ?
-            LIMIT 1
-            """;
-        try (Connection conn = DatabaseConnection.getInstance().getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, maNhanVien.trim().toUpperCase());
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return new NhanVienInfo(
-                        rs.getInt("maNV"),
-                        rs.getString("maNhanVien"),
-                        rs.getString("hoTen"),
-                        rs.getString("email"),
-                        rs.getString("tenChucVu"),
-                        rs.getString("tenPhongBan"),
-                        rs.getString("trangThai")
-                    );
-                }
-            }
-        } catch (SQLException e) {
-            System.err.println("[DB] findNhanVienByMa: " + e.getMessage());
-        }
-        return null;
-    }
-
-    /**
-     * Lấy danh sách tất cả nhân viên đang làm việc để tính lương.
-     * Trả về danh sách NhanVienInfo của những NV có trangThai = 'dang_lam_viec'.
-     */
-    public List<NhanVienInfo> findAllNhanVienDangLamViec() {
-        List<NhanVienInfo> list = new ArrayList<>();
-        String sql = """
-            SELECT
-                nv.maNV,
-                nv.maNhanVien,
-                nv.trangThai,
-                ttcn.hoTen,
-                ttcn.email,
-                cv.tenChucVu,
-                pb.tenPhongBan
-            FROM NHANVIEN nv
-            LEFT JOIN THONGTINCANHAN ttcn ON nv.maNV = ttcn.maNV
-            LEFT JOIN BONHIEM bn ON nv.maNV = bn.maNV
-                AND bn.trangThai = 'hieu_luc'
-                AND bn.loaiBoNhiem = 'chinh'
-            LEFT JOIN CHUCVU cv ON bn.maChucVu = cv.maChucVu
-            LEFT JOIN PHONGBAN pb ON bn.maPhongBan = pb.maPhongBan
-            WHERE nv.trangThai = 'dang_lam_viec'
-            ORDER BY nv.maNhanVien
-            """;
-        try (Connection conn = DatabaseConnection.getInstance().getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql);
-             ResultSet rs = ps.executeQuery()) {
-            while (rs.next()) {
-                list.add(new NhanVienInfo(
-                    rs.getInt("maNV"),
-                    rs.getString("maNhanVien"),
-                    rs.getString("hoTen"),
-                    rs.getString("email"),
-                    rs.getString("tenChucVu"),
-                    rs.getString("tenPhongBan"),
-                    rs.getString("trangThai")
-                ));
-            }
-        } catch (SQLException e) {
-            System.err.println("[DB] findAllNhanVienDangLamViec: " + e.getMessage());
-        }
-        return list;
-    }
-
-    /**
-     * Lấy maNhanVien (mã hiển thị) từ maNV (PK nội bộ).
-     * Dùng để hiển thị đúng mã trong bảng chấm công.
-     */
+    /** Lấy maNhanVien (mã hiển thị VD: NV001) từ maNV (PK số nguyên) */
     public String getMaNhanVienById(int maNV) {
         try (Connection conn = DatabaseConnection.getInstance().getConnection();
              PreparedStatement ps = conn.prepareStatement(
@@ -717,5 +621,73 @@ public class AttendanceRepository {
             System.err.println("[DB] getMaNhanVienById: " + e.getMessage());
         }
         return "NV-" + maNV;
+    }
+
+    /** Tra cứu nhân viên theo maNhanVien, trả về thông tin đầy đủ kể cả email */
+    public NhanVienInfo findNhanVienByMa(String maNhanVien) {
+        String sql = """
+            SELECT nv.maNV, nv.maNhanVien, nv.trangThai,
+                   ttcn.hoTen, ttcn.email,
+                   cv.tenChucVu, pb.tenPhongBan
+            FROM NHANVIEN nv
+            LEFT JOIN THONGTINCANHAN ttcn ON nv.maNV = ttcn.maNV
+            LEFT JOIN BONHIEM bn ON nv.maNV = bn.maNV
+                AND bn.trangThai = 'hieu_luc' AND bn.loaiBoNhiem = 'chinh'
+            LEFT JOIN CHUCVU cv ON bn.maChucVu = cv.maChucVu
+            LEFT JOIN PHONGBAN pb ON bn.maPhongBan = pb.maPhongBan
+            WHERE nv.maNhanVien = ?
+            LIMIT 1
+            """;
+        try (Connection conn = DatabaseConnection.getInstance().getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, maNhanVien.trim().toUpperCase());
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) return new NhanVienInfo(
+                    rs.getInt("maNV"), rs.getString("maNhanVien"),
+                    rs.getString("hoTen"), rs.getString("email"),
+                    rs.getString("tenChucVu"), rs.getString("tenPhongBan"),
+                    rs.getString("trangThai"));
+            }
+        } catch (SQLException e) {
+            System.err.println("[DB] findNhanVienByMa: " + e.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * Lấy danh sách NV có ít nhất 1 bản ghi chấm công trong tháng/năm chỉ định.
+     * Dùng cho tính lương — chỉ tính người thực sự đi làm.
+     */
+    public List<NhanVienInfo> findNhanVienCoChamCong(int thang, int nam) {
+        List<NhanVienInfo> list = new ArrayList<>();
+        String sql = """
+            SELECT DISTINCT
+                nv.maNV, nv.maNhanVien, nv.trangThai,
+                ttcn.hoTen, ttcn.email,
+                cv.tenChucVu, pb.tenPhongBan
+            FROM CHAMCONG cc
+            JOIN NHANVIEN nv ON cc.maNV = nv.maNV
+            LEFT JOIN THONGTINCANHAN ttcn ON nv.maNV = ttcn.maNV
+            LEFT JOIN BONHIEM bn ON nv.maNV = bn.maNV
+                AND bn.trangThai = 'hieu_luc' AND bn.loaiBoNhiem = 'chinh'
+            LEFT JOIN CHUCVU cv ON bn.maChucVu = cv.maChucVu
+            LEFT JOIN PHONGBAN pb ON bn.maPhongBan = pb.maPhongBan
+            WHERE MONTH(cc.ngay) = ? AND YEAR(cc.ngay) = ?
+            ORDER BY nv.maNhanVien
+            """;
+        try (Connection conn = DatabaseConnection.getInstance().getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, thang); ps.setInt(2, nam);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) list.add(new NhanVienInfo(
+                    rs.getInt("maNV"), rs.getString("maNhanVien"),
+                    rs.getString("hoTen"), rs.getString("email"),
+                    rs.getString("tenChucVu"), rs.getString("tenPhongBan"),
+                    rs.getString("trangThai")));
+            }
+        } catch (SQLException e) {
+            System.err.println("[DB] findNhanVienCoChamCong: " + e.getMessage());
+        }
+        return list;
     }
 }
