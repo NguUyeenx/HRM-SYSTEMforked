@@ -41,6 +41,9 @@ public class AttendancePanel extends JPanel {
     private JComboBox<String> cboThangL, cboNamL;
     private JPanel luongStats;
     private BangLuong bangLuongHienTai;
+        // Thêm vào khu vực field Tab 4;
+    // Cache ds ChiTietLuong đã load để Export dùng lại (tránh query lại DB)
+    private List<ChiTietLuong> dsCachedLuong = new java.util.ArrayList<>();
 
         // Thêm vào khu vực khai báo field Tab 4
     private JSpinner spinThangL, spinNamL;
@@ -512,6 +515,9 @@ public class AttendancePanel extends JPanel {
         tb.add(bTinh);
         JButton bCT = btn("Xem chi tiet", UIColors.INFO_BLUE);
         tb.add(bCT);
+        JButton bExport = btn("Xuat Excel", new Color(33, 115, 70)); // Xanh lá đậm
+        bExport.setToolTipText("Xuat bang luong ra file .xlsx");
+        tb.add(bExport);
         // Nút điều chỉnh cột hiển thị
         JButton bCol = btn("Tuy chinh cot", new Color(120, 100, 180));
         tb.add(bCol);
@@ -559,6 +565,7 @@ public class AttendancePanel extends JPanel {
         bTinh.addActionListener(e -> loadLuong());
         bCT.addActionListener(e -> xemChiTiet());
         bCol.addActionListener(e -> showColChooser());
+        bExport.addActionListener(e -> xuatExcel());
 
         // Load tháng hiện tại lúc khởi động
         loadLuong();
@@ -566,17 +573,19 @@ public class AttendancePanel extends JPanel {
     }
 
     private void loadLuong() {
-        modelLuong.setRowCount(0);
         int th = (int) spinThangL.getValue();
-        int nm = (int) spinNamL.getValue();
+        int nm = (int) spinNamL.getValue();        modelLuong.setRowCount(0);
+        dsCachedLuong.clear();
 
         bangLuongHienTai = svc.tinhBangLuong(th, nm);
         List<ChiTietLuong> ds = svc.getChiTietLuong(bangLuongHienTai.getMaBL());
 
-        // Chỉ hiển thị NV có giờ công > 0
+        // ✅ Chỉ hiển thị NV có giờ công > 0
         ds = ds.stream()
             .filter(ct -> ct.getSoNgayCong() > 0 && ct.getTongGioLam() > 0)
             .collect(java.util.stream.Collectors.toList());
+
+        dsCachedLuong.addAll(ds); // Cache lại cho Export
 
         if (ds.isEmpty()) {
             if (luongStats != null) {
@@ -590,7 +599,6 @@ public class AttendancePanel extends JPanel {
 
         double tQ = 0, tO = 0, tK = 0;
         for (ChiTietLuong ct : ds) {
-            // ✅ Hiển thị maNhanVien thay vì số int
             String maNhanVien = com.hrm.repo.AttendanceRepository
                 .getInstance().getMaNhanVienById(ct.getMaNV());
             modelLuong.addRow(new Object[]{
@@ -612,7 +620,6 @@ public class AttendancePanel extends JPanel {
             tK += ct.getTongKhauTru();
         }
 
-        // Áp lại trạng thái ẩn/hiện cột sau khi load xong
         applyColVisibility();
 
         if (luongStats == null) return;
@@ -622,9 +629,7 @@ public class AttendancePanel extends JPanel {
         luongStats.add(lbl("Tong tien OT:", fmtTien(tO), UIColors.INFO_BLUE));
         luongStats.add(lbl("Tong khau tru:", fmtTien(tK), UIColors.DANGER_RED));
         luongStats.revalidate(); luongStats.repaint();
-    }
-
-    /** Hộp thoại cho phép ẩn/hiện từng cột trong bảng lương ngoài */
+    }    /** Hộp thoại cho phép ẩn/hiện từng cột trong bảng lương ngoài */
     private void showColChooser() {
         String[] colNames = {"Ma NV", "Ho ten", "Luong chinh", "Ngay cong",
             "Gio lam", "Gio OT", "Phu cap", "Khau tru",
@@ -708,6 +713,102 @@ public class AttendancePanel extends JPanel {
             }
         }
     }
+
+       private void xuatExcel() {
+        if (bangLuongHienTai == null || modelLuong.getRowCount() == 0) {
+            JOptionPane.showMessageDialog(this,
+                "Chua co du lieu luong. Bam 'Tinh / Lam moi' truoc.",
+                "Thong bao", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        int th = (int) spinThangL.getValue();
+        int nm = (int) spinNamL.getValue();
+
+        // Lấy lại danh sách ChiTietLuong từ DB (đã lọc giờ công > 0)
+        List<ChiTietLuong> ds = svc.getChiTietLuong(bangLuongHienTai.getMaBL())
+            .stream()
+            .filter(ct -> ct.getSoNgayCong() > 0 && ct.getTongGioLam() > 0)
+            .collect(java.util.stream.Collectors.toList());
+
+        if (ds.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Khong co du lieu de xuat.", "Thong bao", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        // ── Hỏi kiểu xuất ──
+        String[] options = {
+            "Xuat hien tai (giu nguyen cot dang hien)",
+            "Xuat day du (tat ca cot + sheet phu cap)"
+        };
+        int choice = JOptionPane.showOptionDialog(
+            this,
+            "Chon kieu xuat bieu:",
+            "Xuat Excel - Thang " + String.format("%02d/%d", th, nm),
+            JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE,
+            null, options, options[0]);
+
+        if (choice < 0) return;
+
+        // ── Chọn nơi lưu ──
+        JFileChooser fc = new JFileChooser();
+        fc.setDialogTitle("Luu file Excel");
+        fc.setSelectedFile(new java.io.File(
+            String.format("BangLuong_T%02d_%d%s.xlsx",
+                th, nm, choice == 1 ? "_DayDu" : "_HienTai")));
+        fc.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter(
+            "Excel Files (*.xlsx)", "xlsx"));
+
+        if (fc.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) return;
+
+        String path = fc.getSelectedFile().getAbsolutePath();
+        if (!path.endsWith(".xlsx")) path += ".xlsx";
+        final String filePath = path;
+        final int finalChoice = choice;
+        final List<ChiTietLuong> finalDs = ds;
+
+        // ── Xuất trên thread riêng — tránh đơ UI ──
+        new Thread(() -> {
+            try {
+                java.util.function.Function<Integer, String> getMaNV =
+                    maNV -> com.hrm.repo.AttendanceRepository
+                        .getInstance().getMaNhanVienById(maNV);
+
+                if (finalChoice == 0) {
+                    com.hrm.util.ExcelExporter.exportHienTai(
+                        filePath, finalDs, colHidden, th, nm, getMaNV);
+                } else {
+                    com.hrm.util.ExcelExporter.exportDayDu(
+                        filePath, finalDs, th, nm, getMaNV);
+                }
+
+                SwingUtilities.invokeLater(() -> {
+                    int open = JOptionPane.showConfirmDialog(
+                        AttendancePanel.this,
+                        "Xuat thanh cong!\nFile: " + filePath + "\n\nMo file ngay?",
+                        "Thanh cong", JOptionPane.YES_NO_OPTION,
+                        JOptionPane.INFORMATION_MESSAGE);
+                    if (open == JOptionPane.YES_OPTION) {
+                        try {
+                            java.awt.Desktop.getDesktop().open(new java.io.File(filePath));
+                        } catch (Exception ex) {
+                            JOptionPane.showMessageDialog(AttendancePanel.this,
+                                "Khong the mo file tu dong. Vui long mo thu cong.",
+                                "Luu y", JOptionPane.WARNING_MESSAGE);
+                        }
+                    }
+                });
+
+            } catch (Exception ex) {
+                SwingUtilities.invokeLater(() ->
+                    JOptionPane.showMessageDialog(AttendancePanel.this,
+                        "Loi khi xuat Excel: " + ex.getMessage(),
+                        "Loi", JOptionPane.ERROR_MESSAGE));
+            }
+        }).start();
+    }
+
+
 
     private void xemChiTiet() {
         int row = tableLuong.getSelectedRow();
