@@ -41,9 +41,13 @@ public class AttendancePanel extends JPanel {
     private JComboBox<String> cboThangL, cboNamL;
     private JPanel luongStats;
     private BangLuong bangLuongHienTai;
-        // Thêm vào phần khai báo field (cùng chỗ với các field Tab 4 hiện có)
-    private JSpinner spinnerThangRef;
-    private JSpinner spinnerNamRef;
+
+        // Thêm vào khu vực khai báo field Tab 4
+    private JSpinner spinThangL, spinNamL;
+    // Map lưu trạng thái ẩn/hiện của từng cột (index → ẩn)
+    private final boolean[] colHidden = new boolean[12]; // 12 cột
+    // Lưu độ rộng cột gốc để khôi phục
+    private final int[] colWidthOrig = new int[12];
     // Tab 5
     private JTable tablePC; private DefaultTableModel modelPC;
 
@@ -470,58 +474,58 @@ public class AttendancePanel extends JPanel {
     private JPanel tabBangLuong() {
         JPanel p = panel();
 
-        // ── Toolbar: chọn tháng/năm cải tiến ──
+        // ── Toolbar trên ──
         JPanel tb = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 8));
         tb.setOpaque(false);
 
-        // Tháng: spinner thay vì combobox string
+        // Spinner tháng (1–12)
         tb.add(new JLabel("Thang:"));
-        SpinnerNumberModel smThang = new SpinnerNumberModel(
-            LocalDate.now().getMonthValue(), 1, 12, 1);
-        JSpinner spinThang = new JSpinner(smThang);
-        spinThang.setPreferredSize(new Dimension(60, 30));
-        ((JSpinner.DefaultEditor) spinThang.getEditor()).getTextField()
+        spinThangL = new JSpinner(new SpinnerNumberModel(
+            LocalDate.now().getMonthValue(), 1, 12, 1));
+        spinThangL.setPreferredSize(new Dimension(60, 30));
+        ((JSpinner.DefaultEditor) spinThangL.getEditor()).getTextField()
             .setHorizontalAlignment(JTextField.CENTER);
-        tb.add(spinThang);
+        tb.add(spinThangL);
 
-        // Năm: spinner từ 2020 đến năm hiện tại + 1
+        // Spinner năm (2020 → năm hiện tại + 1)
         tb.add(new JLabel("Nam:"));
-        SpinnerNumberModel smNam = new SpinnerNumberModel(
-            LocalDate.now().getYear(), 2020, LocalDate.now().getYear() + 1, 1);
-        JSpinner spinNam = new JSpinner(smNam);
-        spinNam.setPreferredSize(new Dimension(80, 30));
-        ((JSpinner.DefaultEditor) spinNam.getEditor()).getTextField()
+        spinNamL = new JSpinner(new SpinnerNumberModel(
+            LocalDate.now().getYear(), 2020, LocalDate.now().getYear() + 1, 1));
+        spinNamL.setPreferredSize(new Dimension(80, 30));
+        ((JSpinner.DefaultEditor) spinNamL.getEditor()).getTextField()
             .setHorizontalAlignment(JTextField.CENTER);
-        tb.add(spinNam);
+        tb.add(spinNamL);
 
         // Label hiển thị tháng/năm đang xem
         JLabel lblThangNam = new JLabel();
         lblThangNam.setFont(new Font("Segoe UI", Font.BOLD, 13));
         lblThangNam.setForeground(UIColors.PRIMARY_PURPLE);
-        Runnable capNhatLabel = () -> lblThangNam.setText(
-            String.format("Thang %02d/%d",
-                (int) spinThang.getValue(), (int) spinNam.getValue()));
-        capNhatLabel.run();
-        spinThang.addChangeListener(e -> capNhatLabel.run());
-        spinNam.addChangeListener(e -> capNhatLabel.run());
+        Runnable refreshLabel = () -> lblThangNam.setText(String.format("  [ Thang %02d / %d ]  ",
+            (int) spinThangL.getValue(), (int) spinNamL.getValue()));
+        refreshLabel.run();
+        spinThangL.addChangeListener(e -> refreshLabel.run());
+        spinNamL.addChangeListener(e -> refreshLabel.run());
         tb.add(lblThangNam);
 
-        tb.add(Box.createHorizontalStrut(10));
-        JButton bTinh = btn("Tinh / Lam moi luong", UIColors.PRIMARY_PURPLE);
+        tb.add(Box.createHorizontalStrut(8));
+        JButton bTinh = btn("Tinh / Lam moi", UIColors.PRIMARY_PURPLE);
         tb.add(bTinh);
-        tb.add(Box.createHorizontalStrut(10));
         JButton bCT = btn("Xem chi tiet", UIColors.INFO_BLUE);
         tb.add(bCT);
+        // Nút điều chỉnh cột hiển thị
+        JButton bCol = btn("Tuy chinh cot", new Color(120, 100, 180));
+        tb.add(bCol);
 
         p.add(tb, BorderLayout.NORTH);
 
         // ── Bảng ──
-        String[] cols = {"Ma NV", "Ho ten", "Luong co ban", "Ngay cong",
+        String[] cols = {"Ma NV", "Ho ten", "Luong chinh", "Ngay cong",
             "Gio lam", "Gio OT", "Phu cap", "Khau tru",
-            "Tien OT", "Tong luong", "Thuc nhan", "Trang thai"};
+            "Tien OT", "Tong thu nhap", "Thuc nhan", "Trang thai"};
         modelLuong = mdl(cols);
         tableLuong = tbl(modelLuong);
 
+        // Renderer căn phải cho cột tiền
         DefaultTableCellRenderer rightR = new DefaultTableCellRenderer() {
             @Override public Component getTableCellRendererComponent(
                     JTable t, Object v, boolean s, boolean f, int r, int c) {
@@ -529,7 +533,10 @@ public class AttendancePanel extends JPanel {
                 setHorizontalAlignment(RIGHT); setForeground(Color.BLACK); return this;
             }
         };
-        for (int i : new int[]{2, 6, 7, 8, 9}) tableLuong.getColumnModel().getColumn(i).setCellRenderer(rightR);
+        for (int i : new int[]{2, 6, 7, 8, 9})
+            tableLuong.getColumnModel().getColumn(i).setCellRenderer(rightR);
+
+        // Cột "Thực nhận" highlight tím đậm
         tableLuong.getColumnModel().getColumn(10).setCellRenderer(new DefaultTableCellRenderer() {
             @Override public Component getTableCellRendererComponent(
                     JTable t, Object v, boolean s, boolean f, int r, int c) {
@@ -540,6 +547,7 @@ public class AttendancePanel extends JPanel {
             }
         });
         tableLuong.getColumnModel().getColumn(11).setCellRenderer(new StatusR());
+
         p.add(new JScrollPane(tableLuong), BorderLayout.CENTER);
 
         luongStats = new JPanel(new FlowLayout(FlowLayout.LEFT, 30, 10));
@@ -548,34 +556,33 @@ public class AttendancePanel extends JPanel {
         p.add(luongStats, BorderLayout.SOUTH);
 
         // ── Sự kiện ──
-        bTinh.addActionListener(e -> loadLuongFromSpinner(spinThang, spinNam));
+        bTinh.addActionListener(e -> loadLuong());
         bCT.addActionListener(e -> xemChiTiet());
+        bCol.addActionListener(e -> showColChooser());
 
         // Load tháng hiện tại lúc khởi động
-        loadLuongFromSpinner(spinThang, spinNam);
+        loadLuong();
         return p;
     }
 
-    /** Lấy thang/nam từ spinner và gọi loadLuong */
-    private void loadLuongFromSpinner(JSpinner spinThang, JSpinner spinNam) {
-        // Lưu lại spinner reference để xemChiTiet() dùng được
-        spinnerThangRef = spinThang;
-        spinnerNamRef   = spinNam;
-        int th = (int) spinThang.getValue();
-        int nm = (int) spinNam.getValue();
-        loadLuong(th, nm);
-    }
-
-    private void loadLuong(int th, int nm) {
+    private void loadLuong() {
         modelLuong.setRowCount(0);
+        int th = (int) spinThangL.getValue();
+        int nm = (int) spinNamL.getValue();
+
         bangLuongHienTai = svc.tinhBangLuong(th, nm);
         List<ChiTietLuong> ds = svc.getChiTietLuong(bangLuongHienTai.getMaBL());
+
+        // Chỉ hiển thị NV có giờ công > 0
+        ds = ds.stream()
+            .filter(ct -> ct.getSoNgayCong() > 0 && ct.getTongGioLam() > 0)
+            .collect(java.util.stream.Collectors.toList());
 
         if (ds.isEmpty()) {
             if (luongStats != null) {
                 luongStats.removeAll();
                 luongStats.add(lbl("Thang " + th + "/" + nm + ":",
-                    "Chua co du lieu cham cong", Color.GRAY));
+                    "Khong co du lieu cham cong", Color.GRAY));
                 luongStats.revalidate(); luongStats.repaint();
             }
             return;
@@ -590,7 +597,7 @@ public class AttendancePanel extends JPanel {
                 maNhanVien,
                 ct.getTenNV(),
                 fmtTien(ct.getLuongCoBan()),
-                ct.getSoNgayCong(),
+                (int) ct.getSoNgayCong(),
                 String.format("%.1f", ct.getTongGioLam()),
                 ct.getTongGioOT() > 0 ? String.format("%.1f", ct.getTongGioOT()) : "-",
                 fmtTien(ct.getTongLuongChucVu()),
@@ -605,6 +612,9 @@ public class AttendancePanel extends JPanel {
             tK += ct.getTongKhauTru();
         }
 
+        // Áp lại trạng thái ẩn/hiện cột sau khi load xong
+        applyColVisibility();
+
         if (luongStats == null) return;
         luongStats.removeAll();
         luongStats.add(lbl("Nhan vien:", String.valueOf(ds.size()), UIColors.PRIMARY_PURPLE));
@@ -612,19 +622,104 @@ public class AttendancePanel extends JPanel {
         luongStats.add(lbl("Tong tien OT:", fmtTien(tO), UIColors.INFO_BLUE));
         luongStats.add(lbl("Tong khau tru:", fmtTien(tK), UIColors.DANGER_RED));
         luongStats.revalidate(); luongStats.repaint();
-    } 
+    }
+
+    /** Hộp thoại cho phép ẩn/hiện từng cột trong bảng lương ngoài */
+    private void showColChooser() {
+        String[] colNames = {"Ma NV", "Ho ten", "Luong chinh", "Ngay cong",
+            "Gio lam", "Gio OT", "Phu cap", "Khau tru",
+            "Tien OT", "Tong thu nhap", "Thuc nhan", "Trang thai"};
+        // 2 cột luôn cố định: "Ho ten" (1) và "Thuc nhan" (10)
+        int[] lockedCols = {1, 10};
+
+        JDialog d = new JDialog((Frame) SwingUtilities.getWindowAncestor(this),
+            "Tuy chinh cot hien thi", true);
+        d.setSize(320, 460);
+        d.setLocationRelativeTo(this);
+
+        JPanel main = new JPanel(new BorderLayout(10, 10));
+        main.setBorder(new EmptyBorder(15, 20, 15, 20));
+
+        JLabel hint = new JLabel("<html><i>Tick = hien thi | Bo tick = an cot</i></html>");
+        hint.setForeground(Color.GRAY);
+        hint.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        main.add(hint, BorderLayout.NORTH);
+
+        JPanel listP = new JPanel(new GridLayout(0, 1, 0, 6));
+        listP.setOpaque(false);
+        JCheckBox[] checks = new JCheckBox[colNames.length];
+        for (int i = 0; i < colNames.length; i++) {
+            checks[i] = new JCheckBox(colNames[i], !colHidden[i]);
+            checks[i].setOpaque(false);
+            checks[i].setFont(new Font("Segoe UI", Font.PLAIN, 13));
+            // Khoá 2 cột bắt buộc
+            for (int lk : lockedCols) {
+                if (i == lk) {
+                    checks[i].setEnabled(false);
+                    checks[i].setSelected(true);
+                    checks[i].setToolTipText("Cot nay khong the an");
+                }
+            }
+            listP.add(checks[i]);
+        }
+        main.add(new JScrollPane(listP), BorderLayout.CENTER);
+
+        JPanel btnP = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 0));
+        JButton bApply = btn("Ap dung", UIColors.PRIMARY_PURPLE);
+        JButton bReset = btn("Hien tat ca", UIColors.SUCCESS_GREEN);
+        JButton bClose = btn("Dong", Color.GRAY);
+        btnP.add(bApply); btnP.add(bReset); btnP.add(bClose);
+        main.add(btnP, BorderLayout.SOUTH);
+
+        bApply.addActionListener(e -> {
+            for (int i = 0; i < colNames.length; i++) {
+                colHidden[i] = !checks[i].isSelected();
+            }
+            // Đảm bảo 2 cột cố định luôn hiện
+            for (int lk : lockedCols) colHidden[lk] = false;
+            applyColVisibility();
+            d.dispose();
+        });
+        bReset.addActionListener(e -> {
+            java.util.Arrays.fill(colHidden, false);
+            for (JCheckBox cb : checks) cb.setSelected(true);
+            applyColVisibility();
+            d.dispose();
+        });
+        bClose.addActionListener(e -> d.dispose());
+
+        d.setContentPane(main);
+        d.setVisible(true);
+    }
+
+    /** Áp dụng trạng thái ẩn/hiện cột vào tableLuong */
+    private void applyColVisibility() {
+        if (tableLuong == null) return;
+        for (int i = 0; i < colHidden.length; i++) {
+            javax.swing.table.TableColumn col = tableLuong.getColumnModel().getColumn(i);
+            if (colHidden[i]) {
+                // Lưu độ rộng gốc trước khi ẩn
+                if (col.getWidth() > 0) colWidthOrig[i] = col.getWidth();
+                col.setMinWidth(0); col.setMaxWidth(0); col.setPreferredWidth(0);
+            } else {
+                // Khôi phục độ rộng gốc (fallback = 100)
+                int w = colWidthOrig[i] > 0 ? colWidthOrig[i] : 100;
+                col.setMinWidth(15); col.setMaxWidth(500); col.setPreferredWidth(w);
+            }
+        }
+    }
 
     private void xemChiTiet() {
         int row = tableLuong.getSelectedRow();
         if (row < 0) { JOptionPane.showMessageDialog(this, "Chon nhan vien de xem."); return; }
         if (bangLuongHienTai == null) { JOptionPane.showMessageDialog(this, "Chua tinh luong."); return; }
 
-        // Cột 0 giờ là maNhanVien (String), cột 1 là tên
+        // Cột 0 = maNhanVien (String), cột 1 = tên
         String maNhanVienHienThi = (String) modelLuong.getValueAt(row, 0);
         String tenNV = (String) modelLuong.getValueAt(row, 1);
 
         List<ChiTietLuong> dsCT = svc.getChiTietLuong(bangLuongHienTai.getMaBL());
-        // Tìm ChiTietLuong khớp với maNhanVien đang hiển thị
+        // Tìm theo maNhanVien
         ChiTietLuong ct = dsCT.stream()
             .filter(c -> com.hrm.repo.AttendanceRepository.getInstance()
                 .getMaNhanVienById(c.getMaNV()).equals(maNhanVienHienThi))
@@ -633,60 +728,93 @@ public class AttendancePanel extends JPanel {
         if (ct == null) { JOptionPane.showMessageDialog(this, "Khong tim thay chi tiet."); return; }
 
         JDialog d = new JDialog((Frame) SwingUtilities.getWindowAncestor(this),
-            "Chi tiet luong: " + tenNV, true);
-        d.setSize(650, 500);
+            "Chi tiet luong: " + tenNV + "  [" + maNhanVienHienThi + "]", true);
+        d.setSize(680, 540);
         d.setLocationRelativeTo(this);
 
-        // ── Thông tin tổng hợp ──
-        JPanel info = new JPanel(new GridLayout(0, 2, 10, 8));
+        JPanel main = new JPanel(new BorderLayout(0, 10));
+        main.setBorder(new EmptyBorder(15, 15, 15, 15));
+        main.setBackground(UIColors.WHITE);
+
+        // ── Thông tin tổng hợp (LUÔN hiện đầy đủ, không phụ thuộc colHidden) ──
+        JPanel info = new JPanel(new GridLayout(0, 2, 10, 6));
+        info.setOpaque(false);
         info.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createTitledBorder("Tong hop"),
-            new EmptyBorder(10, 10, 10, 10)));
+            BorderFactory.createTitledBorder("Tong hop luong " +
+                String.format("thang %02d/%d",
+                    (int) spinThangL.getValue(), (int) spinNamL.getValue())),
+            new EmptyBorder(8, 10, 8, 10)));
 
-        info.add(boldLabel("Nhan vien:")); info.add(new JLabel(tenNV));
-        info.add(boldLabel("Ma NV:"));     info.add(new JLabel(maNhanVienHienThi));
-        info.add(boldLabel("Ngay cong:")); info.add(new JLabel(String.valueOf((int) ct.getSoNgayCong())));
-        info.add(boldLabel("Gio lam:"));   info.add(new JLabel(String.format("%.1f", ct.getTongGioLam())));
-        info.add(boldLabel("Gio OT:"));    info.add(new JLabel(String.format("%.1f", ct.getTongGioOT())));
-        info.add(boldLabel("Luong chinh:")); info.add(new JLabel(fmtTien(ct.getLuongCoBan())));
-        info.add(boldLabel("Tien OT:"));   info.add(new JLabel(fmtTien(ct.getTienOT())));
-        info.add(boldLabel("Phu cap:"));   info.add(new JLabel(fmtTien(ct.getTongLuongChucVu())));
-        info.add(boldLabel("Khau tru:"));  info.add(new JLabel(fmtTien(ct.getTongKhauTru())));
-        info.add(boldLabel("Tong thu nhap:")); info.add(new JLabel(fmtTien(ct.getTongLuong())));
-        JLabel lblThucNhan = new JLabel(fmtTien(ct.getLuongThucNhan()));
-        lblThucNhan.setFont(new Font("Segoe UI", Font.BOLD, 14));
-        lblThucNhan.setForeground(UIColors.PRIMARY_PURPLE);
-        info.add(boldLabel("THUC NHAN:")); info.add(lblThucNhan);
+        java.util.function.BiConsumer<String, String> addRow = (k, v) -> {
+            JLabel lk = new JLabel(k); lk.setFont(new Font("Segoe UI", Font.BOLD, 13));
+            JLabel lv = new JLabel(v); lv.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+            info.add(lk); info.add(lv);
+        };
+        addRow.accept("Nhan vien:",    tenNV + "  (" + maNhanVienHienThi + ")");
+        addRow.accept("Ngay cong:",    String.valueOf((int) ct.getSoNgayCong()));
+        addRow.accept("Tong gio lam:", String.format("%.1f gio", ct.getTongGioLam()));
+        addRow.accept("Gio OT:",       ct.getTongGioOT() > 0 ? String.format("%.1f gio", ct.getTongGioOT()) : "-");
+        addRow.accept("Luong chinh:",  fmtTien(ct.getLuongCoBan()));
+        addRow.accept("Tien OT:",      ct.getTienOT() > 0 ? fmtTien(ct.getTienOT()) : "-");
+        addRow.accept("Phu cap:",      fmtTien(ct.getTongLuongChucVu()));
+        addRow.accept("Khau tru:",     fmtTien(ct.getTongKhauTru()));
+        addRow.accept("Tong thu nhap:", fmtTien(ct.getTongLuong()));
 
-        // ── Bảng thành phần ──
-        String[] cols = {"Loai", "Ten khoan", "So tien"};
-        DefaultTableModel mTP = new DefaultTableModel(cols, 0) {
+        // Dòng "Thực nhận" nổi bật
+        JLabel lkTN = new JLabel("THUC NHAN:");
+        lkTN.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        JLabel lvTN = new JLabel(fmtTien(ct.getLuongThucNhan()));
+        lvTN.setFont(new Font("Segoe UI", Font.BOLD, 15));
+        lvTN.setForeground(UIColors.PRIMARY_PURPLE);
+        info.add(lkTN); info.add(lvTN);
+
+        main.add(info, BorderLayout.NORTH);
+
+        // ── Bảng thành phần lương (phụ cấp / khấu trừ) ──
+        String[] cols = {"Loai", "Ten khoan", "So tien", "Nguon"};
+        DefaultTableModel mdlTP = new DefaultTableModel(cols, 0) {
             public boolean isCellEditable(int r, int c) { return false; }
         };
+        JTable tblTP = tbl(mdlTP);
+        tblTP.getColumnModel().getColumn(0).setCellRenderer(new DefaultTableCellRenderer() {
+            @Override public Component getTableCellRendererComponent(
+                    JTable t, Object v, boolean s, boolean f, int r, int c) {
+                super.getTableCellRendererComponent(t, v, s, f, r, c);
+                String str = v != null ? v.toString() : "";
+                setForeground(str.contains("cap") ? UIColors.SUCCESS_GREEN : UIColors.DANGER_RED);
+                setFont(new Font("Segoe UI", Font.BOLD, 13));
+                setHorizontalAlignment(CENTER); return this;
+            }
+        });
+        tblTP.getColumnModel().getColumn(2).setCellRenderer(new DefaultTableCellRenderer() {
+            @Override public Component getTableCellRendererComponent(
+                    JTable t, Object v, boolean s, boolean f, int r, int c) {
+                super.getTableCellRendererComponent(t, v, s, f, r, c);
+                setHorizontalAlignment(RIGHT); setForeground(Color.BLACK); return this;
+            }
+        });
+
         for (ThanhPhanLuong tp : ct.getDanhSachThanhPhan()) {
-            mTP.addRow(new Object[]{
-                tp.getLoai().getDisplayName(), tp.getTenKhoan(), fmtTien(tp.getSoTien())
+            String px = tp.getLoai() == ThanhPhanLuong.Loai.PHU_CAP ? "+" : "-";
+            mdlTP.addRow(new Object[]{
+                tp.getLoai().getDisplayName(), tp.getTenKhoan(),
+                px + " " + fmtTien(tp.getSoTien()), tp.getNguon()
             });
         }
-        JTable tbl = new JTable(mTP);
-        tbl.setRowHeight(28);
-        tbl.getTableHeader().setBackground(UIColors.PRIMARY_PURPLE);
-        tbl.getTableHeader().setForeground(Color.WHITE);
 
-        JPanel main = new JPanel(new BorderLayout(10, 10));
-        main.setBorder(new EmptyBorder(15, 15, 15, 15));
-        main.add(info, BorderLayout.NORTH);
-        main.add(new JScrollPane(tbl), BorderLayout.CENTER);
+        JScrollPane scrollTP = new JScrollPane(tblTP);
+        scrollTP.setBorder(BorderFactory.createTitledBorder("Thanh phan phu cap / khau tru"));
+        main.add(scrollTP, BorderLayout.CENTER);
 
         JButton btnDong = btn("Dong", UIColors.PRIMARY_PURPLE);
         btnDong.addActionListener(e -> d.dispose());
         JPanel btnP = new JPanel(new FlowLayout(FlowLayout.CENTER));
-        btnP.add(btnDong);
+        btnP.setOpaque(false); btnP.add(btnDong);
         main.add(btnP, BorderLayout.SOUTH);
 
         d.setContentPane(main);
         d.setVisible(true);
-    }        
+    }
     // ═══════════════════════════════════════════════
     //  TAB 5 — QUẢN LÝ PHỤ CẤP & KHẤU TRỪ
     // ═══════════════════════════════════════════════

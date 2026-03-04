@@ -176,44 +176,45 @@ public class AttendanceService {
         LocalDate ngayBD = LocalDate.of(nam, thang, 1);
         LocalDate ngayKT = ngayBD.withDayOfMonth(ngayBD.lengthOfMonth());
 
-        // Tạo hoặc lấy lại bảng lương đã có cho tháng này
         BangLuong bl = new BangLuong(0, ngayBD, ngayKT);
         bl.setTrangThai(BangLuong.TrangThai.DA_TINH);
         repository.saveBangLuong(bl);
 
-        // Nếu maBL = 0 → INSERT bị lỗi duplicate (bảng lương tháng này đã tồn tại)
-        // → tìm lại bảng lương đã có
+        // Nếu INSERT bị duplicate → tháng đó đã có bảng lương → tìm lại
         if (bl.getMaBL() == 0) {
-            for (BangLuong existing : repository.findAllBangLuong()) {
-                if (existing.getThang() == thang && existing.getNam() == nam) {
-                    bl.setMaBL(existing.getMaBL());
+            for (BangLuong ex : repository.findAllBangLuong()) {
+                if (ex.getThang() == thang && ex.getNam() == nam) {
+                    bl.setMaBL(ex.getMaBL());
                     break;
                 }
             }
         }
+        if (bl.getMaBL() == 0) return bl; // Vẫn không có → lỗi DB
 
         List<CauHinhPhuCap> dsPC = repository.findCauHinhPCHoatDong();
 
-        // ✅ Chỉ lấy NV có chấm công trong tháng này (không tính người vắng cả tháng)
-        List<com.hrm.repo.AttendanceRepository.NhanVienInfo> dsNV =
-            repository.findNhanVienCoChamCong(thang, nam);
+        // Lấy toàn bộ dữ liệu 1 lần (tránh N+1 query)
+        List<ChamCong>      tatCaCC = repository.findByThangNam(thang, nam);
+        List<DangKyLamThem> tatCaOT = repository.findDonOTDaDuyetTheoThang(thang, nam);
 
-        if (dsNV.isEmpty()) return bl; // Không có ai chấm công → trả về luôn
+        // Nhóm chấm công theo maNV → chỉ xử lý những NV có ít nhất 1 bản ghi hoàn tất
+        Map<Integer, List<ChamCong>> ccTheoNV = tatCaCC.stream()
+            .filter(ChamCong::hoanTat)
+            .collect(Collectors.groupingBy(ChamCong::getMaNV));
 
-        // Lấy toàn bộ chấm công + OT 1 lần để tránh N+1 query
-        List<ChamCong>       tatCaCC  = repository.findByThangNam(thang, nam);
-        List<DangKyLamThem>  tatCaOT  = repository.findDonOTDaDuyetTheoThang(thang, nam);
+        // ✅ Chỉ tính lương cho NV có giờ công > 0 trong tháng
+        for (Map.Entry<Integer, List<ChamCong>> entry : ccTheoNV.entrySet()) {
+            int maNV = entry.getKey();
+            List<ChamCong> dsChamCong = entry.getValue();
 
-        for (com.hrm.repo.AttendanceRepository.NhanVienInfo nv : dsNV) {
-            int    maNV      = nv.maNV;
-            double luongCB   = repository.getLuongCoBan(maNV);
-            double luong1Gio = luongCB / SO_NGAY_CONG_CHUAN / 8.0;
-
-            List<ChamCong> dsChamCong = tatCaCC.stream()
-                .filter(cc -> cc.getMaNV() == maNV && cc.hoanTat())
-                .collect(Collectors.toList());
             int    soNgayCong = dsChamCong.size();
             double tongGioLam = dsChamCong.stream().mapToDouble(ChamCong::getSoGioLam).sum();
+
+            // Bỏ qua NV không có giờ làm thực tế
+            if (soNgayCong == 0 || tongGioLam <= 0) continue;
+
+            double luongCB   = repository.getLuongCoBan(maNV);
+            double luong1Gio = (luongCB > 0) ? luongCB / SO_NGAY_CONG_CHUAN / 8.0 : 0;
 
             List<DangKyLamThem> dsOT = tatCaOT.stream()
                 .filter(d -> d.getMaNV() == maNV)
@@ -224,10 +225,17 @@ public class AttendanceService {
 
             double luongChinh = soNgayCong * 8.0 * luong1Gio;
 
+            // Lấy tên NV từ chấm công (đã JOIN THONGTINCANHAN khi load)
+            String tenNV = dsChamCong.stream()
+                .map(ChamCong::getEmployeeName)
+                .filter(n -> n != null && !n.isEmpty())
+                .findFirst()
+                .orElse("NV-" + maNV);
+
             ChiTietLuong ct = new ChiTietLuong();
             ct.setMaBL(bl.getMaBL());
             ct.setMaNV(maNV);
-            ct.setTenNV(nv.hoTen);
+            ct.setTenNV(tenNV);
             ct.setLuongCoBan(luongChinh);
             ct.setTienOT(tienOT);
             ct.setSoNgayCong(soNgayCong);
@@ -235,16 +243,16 @@ public class AttendanceService {
             ct.setTongGioOT(tongGioOT);
 
             for (CauHinhPhuCap pc : dsPC) {
-                double soTien = pc.tinhSoTien(luongCB);
                 ct.themThanhPhan(new ThanhPhanLuong(
-                    pc.getLoai(), pc.getTenKhoan(), soTien, pc.getNguon()));
+                    pc.getLoai(), pc.getTenKhoan(), pc.tinhSoTien(luongCB), pc.getNguon()));
             }
             ct.tinhTong();
             ct.setTrangThai(ChiTietLuong.TrangThai.DA_TINH);
             repository.saveChiTietLuong(ct);
         }
         return bl;
-    }    
+    }
+    
     public List<ChiTietLuong> getChiTietLuong(int maBL) { return repository.findChiTietLuongByMaBL(maBL); }
 
     // ── SERVICE RESULT ──
