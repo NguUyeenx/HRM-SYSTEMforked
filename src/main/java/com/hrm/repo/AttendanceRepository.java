@@ -20,7 +20,6 @@ public class AttendanceRepository {
 
     private static AttendanceRepository instance;
     private AttendanceRepository() {}
-
     public static synchronized AttendanceRepository getInstance() {
         if (instance == null) instance = new AttendanceRepository();
         return instance;
@@ -38,9 +37,11 @@ public class AttendanceRepository {
         ca.setGioKetThuc(rs.getTime("gioKetThuc").toLocalTime());
         ca.setSoGioChuan(rs.getDouble("soGioChuan"));
         ca.setChoPhepLamThem(rs.getBoolean("choPhepLamThem"));
+        // DB dùng ENUM trangThai ('hoat_dong'/'ngung_hoat_dong'), KHÔNG có cột hoatDong
         String tt = rs.getString("trangThai");
         ca.setTrangThai("hoat_dong".equals(tt)
-                ? CaLam.TrangThai.HOAT_DONG : CaLam.TrangThai.NGUNG_HOAT_DONG);
+                ? CaLam.TrangThai.HOAT_DONG
+                : CaLam.TrangThai.NGUNG_HOAT_DONG);
         return ca;
     }
 
@@ -52,6 +53,7 @@ public class AttendanceRepository {
         String maCaLam = rs.getString("maCaLam");
         if (maCaLam != null) cc.setMaCaLam(maCaLam);
         try { cc.setTenCaLam(rs.getString("tenCaLam")); }  catch (SQLException ignored) {}
+        // hoTen lấy từ THONGTINCANHAN qua JOIN
         try { cc.setEmployeeName(rs.getString("hoTen")); } catch (SQLException ignored) {}
         Timestamp gioVao = rs.getTimestamp("gioVao");
         if (gioVao != null) cc.setGioVao(gioVao.toLocalDateTime());
@@ -101,14 +103,14 @@ public class AttendanceRepository {
     }
 
     // ================================================================
-    // CA LÀM (dùng trangThai ENUM, JOIN THONGTINCANHAN cho hoTen)
+    // CA LÀM — dùng cột trangThai ENUM (không có cột hoatDong)
     // ================================================================
 
     public List<CaLam> findCaLamHoatDong() {
         List<CaLam> list = new ArrayList<>();
         try (Connection conn = DatabaseConnection.getInstance().getConnection();
              PreparedStatement ps = conn.prepareStatement(
-                     "SELECT * FROM CALAM WHERE trangThai = 'hoat_dong' ORDER BY maCaLam");
+                "SELECT * FROM CALAM WHERE trangThai = 'hoat_dong' ORDER BY maCaLam");
              ResultSet rs = ps.executeQuery()) {
             while (rs.next()) list.add(mapCaLam(rs));
         } catch (SQLException e) { System.err.println("[DB] findCaLamHoatDong: " + e.getMessage()); }
@@ -135,6 +137,7 @@ public class AttendanceRepository {
     }
 
     public CaLam saveCaLam(CaLam ca) {
+        // Lưu cột trangThai ENUM, không có cột hoatDong
         String sql = """
             INSERT INTO CALAM (maCaLam, tenCaLam, gioBatDau, gioKetThuc, soGioChuan, choPhepLamThem, trangThai)
             VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -160,14 +163,14 @@ public class AttendanceRepository {
     public boolean deleteCaLam(String ma) {
         try (Connection conn = DatabaseConnection.getInstance().getConnection();
              PreparedStatement ps = conn.prepareStatement(
-                     "UPDATE CALAM SET trangThai='ngung_hoat_dong' WHERE maCaLam=?")) {
+                "UPDATE CALAM SET trangThai = 'ngung_hoat_dong' WHERE maCaLam = ?")) {
             ps.setString(1, ma);
             return ps.executeUpdate() > 0;
         } catch (SQLException e) { System.err.println("[DB] deleteCaLam: " + e.getMessage()); return false; }
     }
 
     // ================================================================
-    // CHẤM CÔNG (JOIN THONGTINCANHAN để lấy hoTen)
+    // CHẤM CÔNG — JOIN THONGTINCANHAN để lấy hoTen
     // ================================================================
 
     public ChamCong saveChamCong(ChamCong cc) {
@@ -192,7 +195,8 @@ public class AttendanceRepository {
             } catch (SQLException e) { System.err.println("[DB] saveChamCong INSERT: " + e.getMessage()); }
         } else {
             String sql = """
-                UPDATE CHAMCONG SET maCaLam=?,gioVao=?,gioRa=?,soGioLam=?,gioLamThem=?,trangThai=?,phuongThucChamCong=?,ghiChu=?
+                UPDATE CHAMCONG SET maCaLam=?,gioVao=?,gioRa=?,soGioLam=?,gioLamThem=?,
+                    trangThai=?,phuongThucChamCong=?,ghiChu=?
                 WHERE maChamCong=?""";
             try (Connection conn = DatabaseConnection.getInstance().getConnection();
                  PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -256,7 +260,7 @@ public class AttendanceRepository {
     }
 
     // ================================================================
-    // ĐƠN OT (JOIN THONGTINCANHAN)
+    // ĐƠN OT — JOIN THONGTINCANHAN để lấy hoTen
     // ================================================================
 
     public DangKyLamThem saveDonOT(DangKyLamThem don) {
@@ -266,24 +270,35 @@ public class AttendanceRepository {
                 VALUES (?,?,?,?,?,?,?,?,?)""";
             try (Connection conn = DatabaseConnection.getInstance().getConnection();
                  PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-                ps.setInt(1, don.getMaNV()); ps.setDate(2, Date.valueOf(don.getNgay()));
-                ps.setDouble(3, don.getSoGio()); ps.setString(4, don.getLyDo());
-                ps.setDouble(5, don.getHeSoOT()); ps.setString(6, don.getNhanXet());
-                if (don.getNguoiDuyet() != null) ps.setInt(7, don.getNguoiDuyet()); else ps.setNull(7, Types.INTEGER);
+                ps.setInt(1, don.getMaNV());
+                ps.setDate(2, Date.valueOf(don.getNgay()));
+                ps.setDouble(3, don.getSoGio());
+                ps.setString(4, don.getLyDo());
+                ps.setDouble(5, don.getHeSoOT());
+                ps.setString(6, don.getNhanXet());
+                if (don.getNguoiDuyet() != null) ps.setInt(7, don.getNguoiDuyet());
+                else ps.setNull(7, Types.INTEGER);
                 ps.setTimestamp(8, don.getNgayDuyet() != null ? Timestamp.valueOf(don.getNgayDuyet()) : null);
                 ps.setString(9, don.getTrangThai().getDbValue());
                 ps.executeUpdate();
                 try (ResultSet k = ps.getGeneratedKeys()) { if (k.next()) don.setMaDK(k.getInt(1)); }
             } catch (SQLException e) { System.err.println("[DB] saveDonOT INSERT: " + e.getMessage()); }
         } else {
-            String sql = "UPDATE DANGKYLAMTHEM SET soGio=?,lyDo=?,heSoOT=?,nhanXet=?,nguoiDuyet=?,ngayDuyet=?,trangThai=? WHERE maDK=?";
+            String sql = """
+                UPDATE DANGKYLAMTHEM SET soGio=?,lyDo=?,heSoOT=?,nhanXet=?,
+                    nguoiDuyet=?,ngayDuyet=?,trangThai=?
+                WHERE maDK=?""";
             try (Connection conn = DatabaseConnection.getInstance().getConnection();
                  PreparedStatement ps = conn.prepareStatement(sql)) {
-                ps.setDouble(1, don.getSoGio()); ps.setString(2, don.getLyDo());
-                ps.setDouble(3, don.getHeSoOT()); ps.setString(4, don.getNhanXet());
-                if (don.getNguoiDuyet() != null) ps.setInt(5, don.getNguoiDuyet()); else ps.setNull(5, Types.INTEGER);
+                ps.setDouble(1, don.getSoGio());
+                ps.setString(2, don.getLyDo());
+                ps.setDouble(3, don.getHeSoOT());
+                ps.setString(4, don.getNhanXet());
+                if (don.getNguoiDuyet() != null) ps.setInt(5, don.getNguoiDuyet());
+                else ps.setNull(5, Types.INTEGER);
                 ps.setTimestamp(6, don.getNgayDuyet() != null ? Timestamp.valueOf(don.getNgayDuyet()) : null);
-                ps.setString(7, don.getTrangThai().getDbValue()); ps.setInt(8, don.getMaDK());
+                ps.setString(7, don.getTrangThai().getDbValue());
+                ps.setInt(8, don.getMaDK());
                 ps.executeUpdate();
             } catch (SQLException e) { System.err.println("[DB] saveDonOT UPDATE: " + e.getMessage()); }
         }
@@ -352,28 +367,37 @@ public class AttendanceRepository {
     }
 
     // ================================================================
-    // BẢNG LƯƠNG — Khớp với DB thực tế
+    // BẢNG LƯƠNG — DB thực tế: maBangLuong, thang, nam (không có maNV, ngayBD, ngayKT)
     // ================================================================
 
     public BangLuong saveBangLuong(BangLuong bl) {
-        if (bl.getMaBangLuong() == 0) {
-            // BANGLUONG trong DB không có cột maNV — chỉ có thang, nam, tenBangLuong, trangThai
+        if (bl.getMaBL() == 0) {
             String sql = "INSERT INTO BANGLUONG (thang, nam, tenBangLuong, trangThai) VALUES (?,?,?,?)";
             try (Connection conn = DatabaseConnection.getInstance().getConnection();
                  PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
                 ps.setInt(1, bl.getThang());
                 ps.setInt(2, bl.getNam());
                 ps.setString(3, bl.getTenBangLuong());
-                ps.setString(4, bl.getTrangThai().getDbValue());
+                // Map DA_TINH → 'dang_xu_ly' nếu DB chỉ có enum dang_xu_ly/da_khoa
+                String dbTrangThai = bl.getTrangThai().getDbValue();
+                // Nếu DB không nhận 'da_tinh', fallback về 'dang_xu_ly'
+                if (!"dang_xu_ly".equals(dbTrangThai) && !"da_khoa".equals(dbTrangThai)) {
+                    dbTrangThai = "dang_xu_ly";
+                }
+                ps.setString(4, dbTrangThai);
                 ps.executeUpdate();
-                try (ResultSet k = ps.getGeneratedKeys()) { if (k.next()) bl.setMaBangLuong(k.getInt(1)); }
+                try (ResultSet k = ps.getGeneratedKeys()) { if (k.next()) bl.setMaBL(k.getInt(1)); }
             } catch (SQLException e) { System.err.println("[DB] saveBangLuong INSERT: " + e.getMessage()); }
         } else {
             String sql = "UPDATE BANGLUONG SET trangThai=? WHERE maBangLuong=?";
             try (Connection conn = DatabaseConnection.getInstance().getConnection();
                  PreparedStatement ps = conn.prepareStatement(sql)) {
-                ps.setString(1, bl.getTrangThai().getDbValue());
-                ps.setInt(2, bl.getMaBangLuong());
+                String dbTrangThai = bl.getTrangThai().getDbValue();
+                if (!"dang_xu_ly".equals(dbTrangThai) && !"da_khoa".equals(dbTrangThai)) {
+                    dbTrangThai = "da_khoa";
+                }
+                ps.setString(1, dbTrangThai);
+                ps.setInt(2, bl.getMaBL());
                 ps.executeUpdate();
             } catch (SQLException e) { System.err.println("[DB] saveBangLuong UPDATE: " + e.getMessage()); }
         }
@@ -383,13 +407,12 @@ public class AttendanceRepository {
     public List<BangLuong> findAllBangLuong() {
         List<BangLuong> list = new ArrayList<>();
         try (Connection conn = DatabaseConnection.getInstance().getConnection();
-             PreparedStatement ps = conn.prepareStatement("SELECT * FROM BANGLUONG ORDER BY nam DESC, thang DESC");
+             PreparedStatement ps = conn.prepareStatement(
+                "SELECT * FROM BANGLUONG ORDER BY nam DESC, thang DESC");
              ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
-                BangLuong bl = new BangLuong();
-                bl.setMaBangLuong(rs.getInt("maBangLuong"));
-                bl.setThang(rs.getInt("thang"));
-                bl.setNam(rs.getInt("nam"));
+                BangLuong bl = new BangLuong(rs.getInt("thang"), rs.getInt("nam"));
+                bl.setMaBL(rs.getInt("maBangLuong"));
                 bl.setTenBangLuong(rs.getString("tenBangLuong"));
                 bl.setTrangThai(BangLuong.TrangThai.fromDbValue(rs.getString("trangThai")));
                 list.add(bl);
@@ -399,30 +422,29 @@ public class AttendanceRepository {
     }
 
     // ================================================================
-    // CHI TIẾT LƯƠNG — Khớp với DB thực tế
+    // CHI TIẾT LƯƠNG — DB: maChiTiet, maBangLuong, luongCoSo, luongLamThem, tongThuNhap, luongThucLanh
     // ================================================================
 
     public ChiTietLuong saveChiTietLuong(ChiTietLuong ct) {
-        if (ct.getMaChiTiet() == 0) {
-            // Tên cột đúng với DB: maBangLuong, luongCoSo, luongLamThem, tongThuNhap, luongThucLanh, soGioLamThem
+        if (ct.getMaChiTietLuong() == 0) {
             String sql = """
                 INSERT INTO CHITIETLUONG (maBangLuong,maNV,luongCoSo,tongLuongChucVu,luongLamThem,
                     tongKhauTru,tongThuNhap,luongThucLanh,soNgayCong,soGioLamThem)
                 VALUES (?,?,?,?,?,?,?,?,?,?)""";
             try (Connection conn = DatabaseConnection.getInstance().getConnection();
                  PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-                ps.setInt(1, ct.getMaBangLuong());
+                ps.setInt(1, ct.getMaBL());                      // maBangLuong
                 ps.setInt(2, ct.getMaNV());
-                ps.setDouble(3, ct.getLuongCoSo());
+                ps.setDouble(3, ct.getLuongCoBan());             // → luongCoSo
                 ps.setDouble(4, ct.getTongLuongChucVu());
-                ps.setDouble(5, ct.getLuongLamThem());
+                ps.setDouble(5, ct.getTienOT());                 // → luongLamThem
                 ps.setDouble(6, ct.getTongKhauTru());
-                ps.setDouble(7, ct.getTongThuNhap());
-                ps.setDouble(8, ct.getLuongThucLanh());
+                ps.setDouble(7, ct.getTongLuong());              // → tongThuNhap
+                ps.setDouble(8, ct.getLuongThucNhan());          // → luongThucLanh
                 ps.setDouble(9, ct.getSoNgayCong());
-                ps.setDouble(10, ct.getSoGioLamThem());
+                ps.setDouble(10, ct.getTongGioOT());             // → soGioLamThem
                 ps.executeUpdate();
-                try (ResultSet k = ps.getGeneratedKeys()) { if (k.next()) ct.setMaChiTiet(k.getInt(1)); }
+                try (ResultSet k = ps.getGeneratedKeys()) { if (k.next()) ct.setMaChiTietLuong(k.getInt(1)); }
             } catch (SQLException e) { System.err.println("[DB] saveChiTietLuong: " + e.getMessage()); }
         }
         return ct;
@@ -430,7 +452,6 @@ public class AttendanceRepository {
 
     public List<ChiTietLuong> findChiTietLuongByMaBL(int maBL) {
         List<ChiTietLuong> list = new ArrayList<>();
-        // FK trong DB là maBangLuong, không phải maBL
         String sql = """
             SELECT ct.*, ttcn.hoTen FROM CHITIETLUONG ct
             LEFT JOIN THONGTINCANHAN ttcn ON ct.maNV = ttcn.maNV
@@ -441,18 +462,18 @@ public class AttendanceRepository {
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     ChiTietLuong ct = new ChiTietLuong();
-                    ct.setMaChiTiet(rs.getInt("maChiTiet"));
-                    ct.setMaBangLuong(rs.getInt("maBangLuong"));
+                    ct.setMaChiTietLuong(rs.getInt("maChiTiet"));
+                    ct.setMaBL(rs.getInt("maBangLuong"));
                     ct.setMaNV(rs.getInt("maNV"));
                     ct.setTenNV(rs.getString("hoTen"));
-                    ct.setLuongCoSo(rs.getDouble("luongCoSo"));
+                    ct.setLuongCoBan(rs.getDouble("luongCoSo"));
                     ct.setTongLuongChucVu(rs.getDouble("tongLuongChucVu"));
-                    ct.setLuongLamThem(rs.getDouble("luongLamThem"));
+                    ct.setTienOT(rs.getDouble("luongLamThem"));
                     ct.setTongKhauTru(rs.getDouble("tongKhauTru"));
-                    ct.setTongThuNhap(rs.getDouble("tongThuNhap"));
-                    ct.setLuongThucLanh(rs.getDouble("luongThucLanh"));
-                    ct.setSoNgayCong(rs.getDouble("soNgayCong"));
-                    ct.setSoGioLamThem(rs.getDouble("soGioLamThem"));
+                    ct.setTongLuong(rs.getDouble("tongThuNhap"));
+                    ct.setLuongThucNhan(rs.getDouble("luongThucLanh"));
+                    ct.setSoNgayCong((int) rs.getDouble("soNgayCong"));
+                    ct.setTongGioOT(rs.getDouble("soGioLamThem"));
                     list.add(ct);
                 }
             }
@@ -461,11 +482,10 @@ public class AttendanceRepository {
     }
 
     // ================================================================
-    // LƯƠNG CƠ BẢN — Đọc từ HOPDONGLAODONG (hợp đồng đang hiệu lực)
+    // LƯƠNG CƠ BẢN — lấy từ HOPDONGLAODONG (hợp đồng đang hiệu lực)
     // ================================================================
 
     public double getLuongCoBan(int maNV) {
-        // DB không có luongCoBan trong NHANVIEN → lấy từ hợp đồng đang hiệu lực
         String sql = """
             SELECT luongCoSo FROM HOPDONGLAODONG
             WHERE maNV=? AND trangThai='hieu_luc'
@@ -477,11 +497,10 @@ public class AttendanceRepository {
                 if (rs.next()) return rs.getDouble("luongCoSo");
             }
         } catch (SQLException e) { System.err.println("[DB] getLuongCoBan: " + e.getMessage()); }
-        return 10_000_000.0; // fallback
+        return 10_000_000.0;
     }
 
     public void setLuongCoBan(int maNV, double luong) {
-        // Cập nhật hợp đồng đang hiệu lực
         String sql = """
             UPDATE HOPDONGLAODONG SET luongCoSo=?
             WHERE maNV=? AND trangThai='hieu_luc'
@@ -494,7 +513,7 @@ public class AttendanceRepository {
     }
 
     // ================================================================
-    // CẤU HÌNH PHỤ CẤP / KHẤU TRỪ
+    // CẤU HÌNH PHỤ CẤP
     // ================================================================
 
     public CauHinhPhuCap saveCauHinhPC(CauHinhPhuCap pc) {
@@ -502,9 +521,12 @@ public class AttendanceRepository {
             String sql = "INSERT INTO CAUHINH_PHUCAP (loai,tenKhoan,kieuTinh,giaTriMacDinh,nguon,hoatDong) VALUES (?,?,?,?,?,?)";
             try (Connection conn = DatabaseConnection.getInstance().getConnection();
                  PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-                ps.setString(1, pc.getLoai().getDbValue()); ps.setString(2, pc.getTenKhoan());
-                ps.setString(3, pc.getKieuTinh().getDbValue()); ps.setDouble(4, pc.getGiaTriMacDinh());
-                ps.setString(5, pc.getNguon()); ps.setBoolean(6, pc.isHoatDong());
+                ps.setString(1, pc.getLoai().getDbValue());
+                ps.setString(2, pc.getTenKhoan());
+                ps.setString(3, pc.getKieuTinh().getDbValue());
+                ps.setDouble(4, pc.getGiaTriMacDinh());
+                ps.setString(5, pc.getNguon());
+                ps.setBoolean(6, pc.isHoatDong());
                 ps.executeUpdate();
                 try (ResultSet k = ps.getGeneratedKeys()) { if (k.next()) pc.setMaPC(k.getInt(1)); }
             } catch (SQLException e) { System.err.println("[DB] saveCauHinhPC INSERT: " + e.getMessage()); }
@@ -512,9 +534,13 @@ public class AttendanceRepository {
             String sql = "UPDATE CAUHINH_PHUCAP SET loai=?,tenKhoan=?,kieuTinh=?,giaTriMacDinh=?,nguon=?,hoatDong=? WHERE maCauHinh=?";
             try (Connection conn = DatabaseConnection.getInstance().getConnection();
                  PreparedStatement ps = conn.prepareStatement(sql)) {
-                ps.setString(1, pc.getLoai().getDbValue()); ps.setString(2, pc.getTenKhoan());
-                ps.setString(3, pc.getKieuTinh().getDbValue()); ps.setDouble(4, pc.getGiaTriMacDinh());
-                ps.setString(5, pc.getNguon()); ps.setBoolean(6, pc.isHoatDong()); ps.setInt(7, pc.getMaPC());
+                ps.setString(1, pc.getLoai().getDbValue());
+                ps.setString(2, pc.getTenKhoan());
+                ps.setString(3, pc.getKieuTinh().getDbValue());
+                ps.setDouble(4, pc.getGiaTriMacDinh());
+                ps.setString(5, pc.getNguon());
+                ps.setBoolean(6, pc.isHoatDong());
+                ps.setInt(7, pc.getMaPC());
                 ps.executeUpdate();
             } catch (SQLException e) { System.err.println("[DB] saveCauHinhPC UPDATE: " + e.getMessage()); }
         }
