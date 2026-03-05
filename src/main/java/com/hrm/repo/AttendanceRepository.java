@@ -655,6 +655,25 @@ public class AttendanceRepository {
     }
 
     /**
+     * Lấy maNV (PK bảng NHANVIEN) từ maTaiKhoan (PK bảng TAIKHOAN).
+     * Dùng cho: Khi user đăng nhập, cần tìm maNV tương ứng để chấm công.
+     * @return maNV hoặc -1 nếu không tìm thấy
+     */
+    public int getMaNVByTaiKhoan(int maTaiKhoan) {
+        try (Connection conn = DatabaseConnection.getInstance().getConnection();
+             PreparedStatement ps = conn.prepareStatement(
+                "SELECT maNV FROM TAIKHOAN WHERE maTaiKhoan = ? AND maNV IS NOT NULL")) {
+            ps.setInt(1, maTaiKhoan);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) return rs.getInt("maNV");
+            }
+        } catch (SQLException e) {
+            System.err.println("[DB] getMaNVByTaiKhoan: " + e.getMessage());
+        }
+        return -1;
+    }
+
+    /**
      * Lấy danh sách NV có ít nhất 1 bản ghi chấm công trong tháng/năm chỉ định.
      * Dùng cho tính lương — chỉ tính người thực sự đi làm.
      */
