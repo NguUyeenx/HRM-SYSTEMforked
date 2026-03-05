@@ -5,31 +5,13 @@ import java.time.LocalDateTime;
 import java.time.Duration;
 
 /**
- * Model đại diện cho bảng CHAMCONG (Chấm công hàng ngày).
- *
- * Mỗi bản ghi lưu lại:
- * - Nhân viên nào chấm công
- * - Ngày nào
- * - Giờ vào / giờ ra
- * - Số giờ làm thực tế / giờ làm thêm
- * - Trạng thái (đúng giờ, đi muộn, về sớm...)
- * - Phương thức chấm công (wifi, vân tay, thủ công...)
- *
- * RÀNG BUỘC QUAN TRỌNG:
- * Mỗi nhân viên chỉ có DUY NHẤT 1 bản ghi chấm công mỗi ngày.
- * (UNIQUE KEY uk_nv_ngay (maNV, ngay) trong DB)
+ * Model đại diện cho bảng CHAMCONG (chấm công hàng ngày).
+ * <p>
+ * Trạng thái OT được lưu vào cột {@code ghiChu} với giá trị {@code "OT"},
+ * không thêm cột mới vào database.
  */
 public class ChamCong {
 
-    // ====================================================
-    // ENUM: Trạng thái chấm công
-    // ====================================================
-    //
-    // ENUM NÀY RẤT QUAN TRỌNG vì nó quyết định:
-    // - Bảng lương tính thế nào (đi muộn bị trừ? vắng mặt không tính công?)
-    // - Màu sắc hiển thị trên giao diện (xanh = đúng giờ, đỏ = vắng...)
-    // - Báo cáo thống kê chấm công
-    //
     public enum TrangThai {
         DUNG_GIO("dung_gio", "Đúng giờ"),
         DI_MUON("di_muon", "Đi muộn"),
@@ -51,25 +33,12 @@ public class ChamCong {
 
         public static TrangThai fromDbValue(String value) {
             for (TrangThai tt : values()) {
-                if (tt.dbValue.equals(value)) {
-                    return tt;
-                }
+                if (tt.dbValue.equals(value)) return tt;
             }
-            throw new IllegalArgumentException("Trạng thái chấm công không hợp lệ: " + value);
+            throw new IllegalArgumentException("Trang thai cham cong khong hop le: " + value);
         }
     }
 
-    // ====================================================
-    // ENUM: Phương thức chấm công
-    // ====================================================
-    //
-    // Hệ thống hỗ trợ nhiều cách chấm công:
-    // - wifi: Kiểm tra NV đang kết nối WiFi công ty
-    // - van_tay: Máy quét vân tay
-    // - the_tu: Quẹt thẻ nhân viên
-    // - gps: Định vị (cho NV làm việc ngoài văn phòng)
-    // - thu_cong: Admin/HR nhập tay
-    //
     public enum PhuongThuc {
         WIFI("wifi", "WiFi"),
         VAN_TAY("van_tay", "Vân tay"),
@@ -90,53 +59,30 @@ public class ChamCong {
 
         public static PhuongThuc fromDbValue(String value) {
             for (PhuongThuc pt : values()) {
-                if (pt.dbValue.equals(value)) {
-                    return pt;
-                }
+                if (pt.dbValue.equals(value)) return pt;
             }
-            throw new IllegalArgumentException("Phương thức chấm công không hợp lệ: " + value);
+            throw new IllegalArgumentException("Phuong thuc cham cong khong hop le: " + value);
         }
     }
 
-    // ====================================================
-    // FIELDS — Mapping với bảng CHAMCONG
-    // ====================================================
-    //
-    // CHÚ Ý VỀ KIỂU DỮ LIỆU:
-    //
-    // 1. maNV dùng 'int' (primitive) vì nó là NOT NULL, luôn có giá trị
-    // 2. maCaLam dùng 'String' vì nó có thể NULL (NV chưa được gán ca)
-    // 3. gioVao/gioRa dùng 'LocalDateTime' thay vì 'LocalTime' vì:
-    //    - DB lưu DATETIME (bao gồm cả ngày)
-    //    - Ca đêm có thể qua ngày (vào 22:00 ngày 1, ra 06:00 ngày 2)
-    //    - LocalDateTime giúp tính toán chênh lệch chính xác
-    //
-    // 4. employeeName KHÔNG CÓ trong DB (không phải cột trong bảng CHAMCONG)
-    //    → Đây là field "phụ trợ" để hiển thị trên giao diện
-    //    → Được lấy từ bảng THONGTINCANHAN khi JOIN query
-    //    → Pattern này gọi là "Presentation field" hoặc "Transient field"
-    //
+    // ── Hằng số đánh dấu ca OT trong cột ghiChu ──
+    private static final String OT_FLAG = "OT";
 
-    private int maChamCong;             // PRIMARY KEY — AUTO_INCREMENT
-    private int maNV;                   // FK → NHANVIEN — NOT NULL
-    private String employeeName;        // TRANSIENT — Không lưu DB, chỉ để hiển thị
-    private LocalDate ngay;             // NOT NULL — Ngày chấm công
-    private String maCaLam;             // FK → CALAM — có thể NULL
-    private String tenCaLam;            // TRANSIENT — Tên ca để hiển thị
-    private LocalDateTime gioVao;       // Thời điểm check-in
-    private LocalDateTime gioRa;        // Thời điểm check-out
-    private double soGioLam;            // Số giờ làm thực tế — DECIMAL(4,2)
-    private double gioLamThem;          // Giờ OT — DECIMAL(4,2)
-    private TrangThai trangThai;        // Trạng thái chấm công
-    private PhuongThuc phuongThucChamCong; // Cách chấm công
-    private String ghiChu;              // Ghi chú — có thể NULL
-    private LocalDateTime ngayTao;      // Thời điểm tạo bản ghi
+    private int maChamCong;
+    private int maNV;
+    private String employeeName;    // TRANSIENT
+    private LocalDate ngay;
+    private String maCaLam;
+    private String tenCaLam;        // TRANSIENT
+    private LocalDateTime gioVao;
+    private LocalDateTime gioRa;
+    private double soGioLam;
+    private double gioLamThem;
+    private TrangThai trangThai;
+    private PhuongThuc phuongThucChamCong;
+    private String ghiChu;
+    private LocalDateTime ngayTao;
 
-    // ====================================================
-    // CONSTRUCTORS
-    // ====================================================
-
-    /** Constructor mặc định */
     public ChamCong() {
         this.soGioLam = 0;
         this.gioLamThem = 0;
@@ -145,19 +91,11 @@ public class ChamCong {
         this.ngayTao = LocalDateTime.now();
     }
 
-    /**
-     * Constructor cho check-in mới.
-     * Khi nhân viên bấm "Check-in", chỉ cần biết:
-     * - Ai check-in (maNV)
-     * - Ngày nào (ngay)
-     * - Ca nào (maCaLam)
-     */
     public ChamCong(int maNV, LocalDate ngay, String maCaLam) {
         this();
         this.maNV = maNV;
         this.ngay = ngay;
         this.maCaLam = maCaLam;
-        this.gioVao = LocalDateTime.now(); // Tự động ghi thời điểm check-in
     }
 
     // ====================================================
@@ -209,63 +147,52 @@ public class ChamCong {
     public void setNgayTao(LocalDateTime ngayTao) { this.ngayTao = ngayTao; }
 
     // ====================================================
-    // HELPER METHODS
+    // HELPERS — OT FLAG (dùng ghiChu để lưu, không thêm cột DB)
     // ====================================================
 
     /**
-     * Tính số giờ làm việc từ giờ vào và giờ ra.
-     *
-     * TẠI SAO CẦN METHOD NÀY?
-     * - Khi NV check-out, hệ thống tự động tính: gioRa - gioVao
-     * - Kết quả làm tròn 2 chữ số thập phân (vd: 7.50 giờ, 8.25 giờ)
-     *
-     * LƯU Ý:
-     * - Duration.between() trả về Duration (khoảng thời gian)
-     * - toMinutes() chuyển sang phút → chia 60.0 để ra giờ
-     * - Trả về 0 nếu chưa check-in hoặc chưa check-out
-     *
-     * @return Số giờ làm việc, làm tròn 2 chữ số thập phân
+     * Kiểm tra ca chấm công này có phải ca OT không.
+     * Dựa vào ghiChu == "OT" (được lưu vào DB qua cột ghiChu hiện có).
      */
-    public double tinhSoGioLam() {
-        if (gioVao == null || gioRa == null) {
-            return 0;
+    public boolean isLaOT() {
+        return ghiChu != null && OT_FLAG.equals(ghiChu.trim());
+    }
+
+    /**
+     * Đánh dấu/bỏ đánh dấu ca OT.
+     * @param laOT true = ca OT, false = ca thường
+     */
+    public void setLaOT(boolean laOT) {
+        if (laOT) {
+            this.ghiChu = OT_FLAG;
+        } else if (OT_FLAG.equals(this.ghiChu)) {
+            this.ghiChu = null; // Chỉ xóa nếu ghiChu đang là "OT"
         }
-        long phut = Duration.between(gioVao, gioRa).toMinutes();
-        // Làm tròn 2 chữ số: nhân 100, round, chia 100
-        return Math.round(phut / 60.0 * 100.0) / 100.0;
+        // Nếu ghiChu là nội dung khác → giữ nguyên
+    }
+    // ====================================================
+    // BUSINESS METHODS
+    // ====================================================
+
+    public double tinhSoGioLam() {
+        if (gioVao == null || gioRa == null) return 0;
+        return Duration.between(gioVao, gioRa).toMinutes() / 60.0;
     }
 
-    /**
-     * Kiểm tra nhân viên đã check-in chưa.
-     * Dùng để hiển thị nút "Check-in" hay "Check-out" trên giao diện.
-     */
-    public boolean daCheckIn() {
-        return gioVao != null;
-    }
+    public boolean daCheckOut() { return gioRa != null; }
 
-    /**
-     * Kiểm tra nhân viên đã check-out chưa.
-     * Nếu đã check-out → bản ghi hoàn chỉnh, không cho sửa.
-     */
-    public boolean daCheckOut() {
-        return gioRa != null;
-    }
-
-    /**
-     * Kiểm tra bản ghi đã hoàn tất chưa (cả check-in và check-out).
-     * Bản ghi hoàn tất mới được tính vào bảng lương.
-     */
     public boolean hoanTat() {
-        return daCheckIn() && daCheckOut();
+        if (gioVao == null || gioRa == null) return false;
+        double gio = (soGioLam > 0) ? soGioLam : tinhSoGioLam();
+        return gio > 0;
     }
 
     @Override
     public String toString() {
-        return "ChamCong{" +
-                "maNV=" + maNV +
-                ", ngay=" + ngay +
-                ", trangThai=" + (trangThai != null ? trangThai.getDisplayName() : "N/A") +
-                ", soGioLam=" + soGioLam +
-                '}';
+        return "ChamCong{maNV=" + maNV + ", ngay=" + ngay
+            + ", trangThai=" + (trangThai != null ? trangThai.getDisplayName() : "N/A")
+            + ", soGioLam=" + soGioLam
+            + (isLaOT() ? ", [OT]" : "")
+            + '}';
     }
 }

@@ -4,16 +4,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Model đại diện cho bảng CHITIETLUONG.
- *
- * Mỗi bản ghi = lương của 1 NV trong 1 kỳ lương.
- * Liên kết:
- *   BANGLUONG (1) → (N) CHITIETLUONG
- *   CHITIETLUONG (1) → (N) THANHPHANLUONG
- *
- * CÔNG THỨC:
- *   tongLuong     = luongCoBan + tongLuongChucVu + tienOT
- *   luongThucNhan = tongLuong - tongKhauTru
+ * Khớp với bảng CHITIETLUONG trong DB:
+ *   maChiTiet, maBangLuong, maNV,
+ *   luongCoSo, tongLuongChucVu, luongLamThem,
+ *   tongThuNhap, tongKhauTru, luongThucLanh,
+ *   soNgayCong, soGioLamThem
  */
 public class ChiTietLuong {
 
@@ -32,25 +27,27 @@ public class ChiTietLuong {
 
         public String getDbValue() { return dbValue; }
         public String getDisplayName() { return displayName; }
+
+        public static TrangThai fromDbValue(String value) {
+            for (TrangThai t : values()) if (t.dbValue.equals(value)) return t;
+            return CHUA_TINH;
+        }
     }
 
-    private int maChiTietLuong;
-    private int maBL;            // FK → BANGLUONG
-    private int maNV;            // FK → NHANVIEN
-    private String tenNV;        // Transient — để hiển thị
+    private int maChiTiet;       // PK — đúng tên DB
+    private int maBangLuong;     // FK → BANGLUONG — đúng tên DB
+    private int maNV;
+    private String tenNV;        // Transient — lấy từ JOIN
 
-    // Các khoản lương
-    private double luongCoBan;
-    private double tongLuongChucVu;   // Phụ cấp chức vụ
-    private double tienOT;            // Tiền OT (tính từ DangKyLamThem đã duyệt)
-    private double tongKhauTru;       // BHXH, BHYT, thuế...
-    private double tongLuong;         // = luongCoBan + tongLuongChucVu + tienOT
-    private double luongThucNhan;     // = tongLuong - tongKhauTru
-
-    // Thông tin chấm công
-    private int soNgayCong;
-    private double tongGioLam;
-    private double tongGioOT;
+    // Tên field khớp DB
+    private double luongCoSo;        // DB: luongCoSo (không phải luongCoBan)
+    private double tongLuongChucVu;
+    private double luongLamThem;     // DB: luongLamThem (không phải tienOT)
+    private double tongThuNhap;      // DB: tongThuNhap (không phải tongLuong)
+    private double tongKhauTru;
+    private double luongThucLanh;    // DB: luongThucLanh (không phải luongThucNhan)
+    private double soNgayCong;
+    private double soGioLamThem;     // DB: soGioLamThem (không phải tongGioOT)
 
     private TrangThai trangThai;
     private List<ThanhPhanLuong> danhSachThanhPhan;
@@ -60,30 +57,38 @@ public class ChiTietLuong {
         this.danhSachThanhPhan = new ArrayList<>();
     }
 
-    /** Tính tổng lương và lương thực nhận */
     public void tinhTong() {
-        // Tổng phụ cấp
         double tongPhuCap = danhSachThanhPhan.stream()
                 .filter(tp -> tp.getLoai() == ThanhPhanLuong.Loai.PHU_CAP)
                 .mapToDouble(ThanhPhanLuong::getSoTien).sum();
-
-        // Tổng khấu trừ
         double tongTru = danhSachThanhPhan.stream()
                 .filter(tp -> tp.getLoai() == ThanhPhanLuong.Loai.KHAU_TRU)
                 .mapToDouble(ThanhPhanLuong::getSoTien).sum();
 
         this.tongLuongChucVu = tongPhuCap;
         this.tongKhauTru = tongTru;
-        this.tongLuong = luongCoBan + tongLuongChucVu + tienOT;
-        this.luongThucNhan = tongLuong - tongKhauTru;
+        this.tongThuNhap = luongCoSo + tongLuongChucVu + luongLamThem;
+        this.luongThucLanh = tongThuNhap - tongKhauTru;
     }
 
-    // Getters & Setters
-    public int getMaChiTietLuong() { return maChiTietLuong; }
-    public void setMaChiTietLuong(int maChiTietLuong) { this.maChiTietLuong = maChiTietLuong; }
+    /** Thêm 1 thành phần lương */
+    public void themThanhPhan(ThanhPhanLuong tp) {
+        this.danhSachThanhPhan.add(tp);
+    }
 
-    public int getMaBL() { return maBL; }
-    public void setMaBL(int maBL) { this.maBL = maBL; }
+    // ── Getters & Setters ──
+
+    public int getMaChiTietLuong() { return maChiTiet; }
+    public void setMaChiTietLuong(int id) { this.maChiTiet = id; }
+
+    public int getMaChiTiet() { return maChiTiet; }
+    public void setMaChiTiet(int maChiTiet) { this.maChiTiet = maChiTiet; }
+
+    public int getMaBL() { return maBangLuong; }
+    public void setMaBL(int maBL) { this.maBangLuong = maBL; }
+
+    public int getMaBangLuong() { return maBangLuong; }
+    public void setMaBangLuong(int maBangLuong) { this.maBangLuong = maBangLuong; }
 
     public int getMaNV() { return maNV; }
     public void setMaNV(int maNV) { this.maNV = maNV; }
@@ -91,32 +96,48 @@ public class ChiTietLuong {
     public String getTenNV() { return tenNV; }
     public void setTenNV(String tenNV) { this.tenNV = tenNV; }
 
-    public double getLuongCoBan() { return luongCoBan; }
-    public void setLuongCoBan(double luongCoBan) { this.luongCoBan = luongCoBan; }
+    public double getLuongCoBan() { return luongCoSo; }
+    public void setLuongCoBan(double v) { this.luongCoSo = v; }
+
+    public double getLuongCoSo() { return luongCoSo; }
+    public void setLuongCoSo(double luongCoSo) { this.luongCoSo = luongCoSo; }
 
     public double getTongLuongChucVu() { return tongLuongChucVu; }
-    public void setTongLuongChucVu(double tongLuongChucVu) { this.tongLuongChucVu = tongLuongChucVu; }
+    public void setTongLuongChucVu(double v) { this.tongLuongChucVu = v; }
 
-    public double getTienOT() { return tienOT; }
-    public void setTienOT(double tienOT) { this.tienOT = tienOT; }
+    public double getTienOT() { return luongLamThem; }
+    public void setTienOT(double v) { this.luongLamThem = v; }
+
+    public double getLuongLamThem() { return luongLamThem; }
+    public void setLuongLamThem(double v) { this.luongLamThem = v; }
+
+    public double getTongLuong() { return tongThuNhap; }
+    public void setTongLuong(double v) { this.tongThuNhap = v; }
+
+    public double getTongThuNhap() { return tongThuNhap; }
+    public void setTongThuNhap(double v) { this.tongThuNhap = v; }
 
     public double getTongKhauTru() { return tongKhauTru; }
-    public void setTongKhauTru(double tongKhauTru) { this.tongKhauTru = tongKhauTru; }
+    public void setTongKhauTru(double v) { this.tongKhauTru = v; }
 
-    public double getTongLuong() { return tongLuong; }
-    public void setTongLuong(double tongLuong) { this.tongLuong = tongLuong; }
+    public double getLuongThucNhan() { return luongThucLanh; }
+    public void setLuongThucNhan(double v) { this.luongThucLanh = v; }
 
-    public double getLuongThucNhan() { return luongThucNhan; }
-    public void setLuongThucNhan(double luongThucNhan) { this.luongThucNhan = luongThucNhan; }
+    public double getLuongThucLanh() { return luongThucLanh; }
+    public void setLuongThucLanh(double v) { this.luongThucLanh = v; }
 
-    public int getSoNgayCong() { return soNgayCong; }
-    public void setSoNgayCong(int soNgayCong) { this.soNgayCong = soNgayCong; }
+    public double getSoNgayCong() { return soNgayCong; }
+    public void setSoNgayCong(int v) { this.soNgayCong = v; }
+    public void setSoNgayCong(double v) { this.soNgayCong = v; }
 
-    public double getTongGioLam() { return tongGioLam; }
-    public void setTongGioLam(double tongGioLam) { this.tongGioLam = tongGioLam; }
+    public double getTongGioLam() { return soNgayCong * 8; }
+    public void setTongGioLam(double v) { /* ignored, tính từ soNgayCong */ }
 
-    public double getTongGioOT() { return tongGioOT; }
-    public void setTongGioOT(double tongGioOT) { this.tongGioOT = tongGioOT; }
+    public double getTongGioOT() { return soGioLamThem; }
+    public void setTongGioOT(double v) { this.soGioLamThem = v; }
+
+    public double getSoGioLamThem() { return soGioLamThem; }
+    public void setSoGioLamThem(double v) { this.soGioLamThem = v; }
 
     public TrangThai getTrangThai() { return trangThai; }
     public void setTrangThai(TrangThai trangThai) { this.trangThai = trangThai; }
@@ -124,10 +145,8 @@ public class ChiTietLuong {
     public List<ThanhPhanLuong> getDanhSachThanhPhan() { return danhSachThanhPhan; }
     public void setDanhSachThanhPhan(List<ThanhPhanLuong> ds) { this.danhSachThanhPhan = ds; }
 
-    public void themThanhPhan(ThanhPhanLuong tp) { this.danhSachThanhPhan.add(tp); }
-
     @Override
     public String toString() {
-        return "ChiTietLuong{maNV=" + maNV + ", thucNhan=" + luongThucNhan + "}";
+        return "ChiTietLuong{maNV=" + maNV + ", thucLanh=" + luongThucLanh + "}";
     }
 }
