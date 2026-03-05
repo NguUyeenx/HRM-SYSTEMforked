@@ -96,7 +96,6 @@ public class ChamCong {
         this.maNV = maNV;
         this.ngay = ngay;
         this.maCaLam = maCaLam;
-        this.gioVao = LocalDateTime.now();
     }
 
     // ====================================================
@@ -156,7 +155,7 @@ public class ChamCong {
      * Dựa vào ghiChu == "OT" (được lưu vào DB qua cột ghiChu hiện có).
      */
     public boolean isLaOT() {
-        return OT_FLAG.equals(ghiChu);
+        return ghiChu != null && OT_FLAG.equals(ghiChu.trim());
     }
 
     /**
@@ -164,9 +163,13 @@ public class ChamCong {
      * @param laOT true = ca OT, false = ca thường
      */
     public void setLaOT(boolean laOT) {
-        this.ghiChu = laOT ? OT_FLAG : null;
+        if (laOT) {
+            this.ghiChu = OT_FLAG;
+        } else if (OT_FLAG.equals(this.ghiChu)) {
+            this.ghiChu = null; // Chỉ xóa nếu ghiChu đang là "OT"
+        }
+        // Nếu ghiChu là nội dung khác → giữ nguyên
     }
-
     // ====================================================
     // BUSINESS METHODS
     // ====================================================
@@ -178,7 +181,11 @@ public class ChamCong {
 
     public boolean daCheckOut() { return gioRa != null; }
 
-    public boolean hoanTat() { return gioVao != null && gioRa != null && soGioLam > 0; }
+    public boolean hoanTat() {
+        if (gioVao == null || gioRa == null) return false;
+        double gio = (soGioLam > 0) ? soGioLam : tinhSoGioLam();
+        return gio > 0;
+    }
 
     @Override
     public String toString() {

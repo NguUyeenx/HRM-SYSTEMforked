@@ -86,7 +86,6 @@ public class AttendanceService {
         if (repository.findByMaNVAndNgay(maNV, LocalDate.now()) != null)
             return ServiceResult.error("Da check-in hom nay.");
 
-        // Nếu đánh dấu OT → bắt buộc phải có đơn OT đã duyệt hôm nay
         if (laOT && !coOTDaDuyetHomNay(maNV))
             return ServiceResult.error(
                 "Ban chua co don OT duoc duyet cho ngay hom nay. Khong the danh dau ca OT.");
@@ -97,21 +96,18 @@ public class AttendanceService {
         if (dsCaLam.isEmpty())
             return ServiceResult.error("Khong co ca lam nao dang hoat dong.");
 
-        // Bước 1: Ca đang diễn ra (vào trong khoảng [gioBD - 30ph, gioKT])
+        // ── Bước 1: Ca đang trong cửa sổ check-in [gioBD - 30ph → gioKT] ──
+        // Nếu có nhiều ca khớp (rất hiếm), chọn ca có giờ bắt đầu GẦN NHẤT với now
         CaLam caLamPhuHop = dsCaLam.stream()
-            .filter(ca -> !nowTime.isBefore(ca.getGioBatDau().minusMinutes(30))
-                       && !nowTime.isAfter(ca.getGioKetThuc()))
-            .min(java.util.Comparator.comparingLong(ca ->
-                Math.abs(java.time.Duration.between(ca.getGioBatDau(), nowTime).toMinutes())))
+            .filter(ca -> trongCuaSoCheckIn(ca, nowTime))
+            .min(Comparator.comparingLong(ca -> khoangCachDenGioBatDau(ca, nowTime)))
             .orElse(null);
 
-        // Bước 2: Fallback — ca gần nhất trong ±2h
+        // ── Bước 2: Fallback — ca gần nhất trong vòng ±2h ──
         if (caLamPhuHop == null) {
             caLamPhuHop = dsCaLam.stream()
-                .filter(ca -> Math.abs(
-                    java.time.Duration.between(ca.getGioBatDau(), nowTime).toMinutes()) <= 120)
-                .min(java.util.Comparator.comparingLong(ca ->
-                    Math.abs(java.time.Duration.between(ca.getGioBatDau(), nowTime).toMinutes())))
+                .filter(ca -> khoangCachDenGioBatDau(ca, nowTime) <= 120)
+                .min(Comparator.comparingLong(ca -> khoangCachDenGioBatDau(ca, nowTime)))
                 .orElse(null);
         }
 
@@ -122,6 +118,41 @@ public class AttendanceService {
 
         return doCheckIn(maNV, caLamPhuHop, laOT);
     }
+
+    // ================================================================
+    // HELPER: Kiểm tra xem giờ hiện tại có nằm trong ca không
+    // Hỗ trợ đúng ca qua nửa đêm (vd: 22:00 → 06:00)
+    // Cửa sổ check-in mở sớm 30 phút trước giờ bắt đầu.
+    // ================================================================
+    private boolean trongCuaSoCheckIn(CaLam ca, java.time.LocalTime now) {
+        java.time.LocalTime batDau = ca.getGioBatDau().minusMinutes(30); // mở sớm 30 phút
+        java.time.LocalTime ketThuc = ca.getGioKetThuc();
+        
+        if (!batDau.isAfter(ketThuc)) {
+            // ── Ca thường (không qua đêm) ──
+            // ví dụ: batDau=07:30, ketThuc=17:00
+            return !now.isBefore(batDau) && !now.isAfter(ketThuc);
+        } else {
+            // ── Ca qua đêm ──
+            // ví dụ: batDau=21:30 (22:00-30ph), ketThuc=06:00
+            // Hợp lệ khi: now >= 21:30 HOẶC now <= 06:00
+            return !now.isBefore(batDau) || !now.isAfter(ketThuc);
+        }
+    }
+
+    /**
+     * Tính khoảng cách (phút) từ giờ hiện tại đến giờ bắt đầu ca.
+     * Luôn trả về giá trị dương, hỗ trợ vòng quanh nửa đêm.
+     * Ví dụ: now=23:50, batDau=00:10 → 20 phút (không phải -1430 phút)
+     */
+    private long khoangCachDenGioBatDau(CaLam ca, java.time.LocalTime now) {
+        long diff = java.time.Duration.between(now, ca.getGioBatDau()).toMinutes();
+        // Chuẩn hóa về [-720, +720] — lấy khoảng gần nhất qua nửa đêm
+        if (diff > 720)  diff -= 1440;
+        if (diff < -720) diff += 1440;
+        return Math.abs(diff);
+    }
+
 
     /**
      * Logic check-in dùng chung.
@@ -184,7 +215,7 @@ public class AttendanceService {
             return ServiceResult.error("Nhap ly do.");
 
         double soGio = DangKyLamThem.tinhSoGioOT(gioVao, gioRa);
-        if (soGio <= 0 || soGio > 8)
+        if (soGio < 0.5 || soGio > 8)
             return ServiceResult.error("Khoang thoi gian OT phai tu 0.5 den 8 gio.");
 
         DangKyLamThem don = new DangKyLamThem(maNV, ngay, gioVao, gioRa, lyDo.trim());
@@ -207,18 +238,8 @@ public class AttendanceService {
         return ServiceResult.success(don, "Da tao don OT.");
     }
 
-    /**
-     * Kiểm tra nhân viên có đơn OT đã được duyệt vào ngày hôm nay không.
-     * Dùng để quyết định có cho phép check checkbox OT khi chấm công hay không.
-     *
-     * @param maNV Mã nhân viên
-     * @return true nếu tồn tại ít nhất 1 đơn OT DA_DUYET hôm nay
-     */
     public boolean coOTDaDuyetHomNay(int maNV) {
-        LocalDate homNay = LocalDate.now();
-        return repository.findDonOTByMaNV(maNV).stream()
-            .anyMatch(don -> don.daDuocDuyet()
-                          && homNay.equals(don.getNgay()));
+        return repository.coOTDaDuyetTheoNgay(maNV, LocalDate.now());
     }
 
 
@@ -350,7 +371,7 @@ public ServiceResult<DangKyLamThem> tuChoiDonLamThem(int maDK, int nguoiDuyetId)
             double tienOT    = dsOT.stream()
                 .mapToDouble(d -> d.getSoGio() * d.getHeSoOT() * luong1Gio).sum();
 
-            double luongChinh = soNgayCong * 8.0 * luong1Gio;
+            double luongChinh = tongGioLam * luong1Gio;
 
             // Lấy tên NV từ chấm công (đã JOIN THONGTINCANHAN khi load)
             String tenNV = dsChamCong.stream()

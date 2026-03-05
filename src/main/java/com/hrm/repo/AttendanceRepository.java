@@ -377,6 +377,34 @@ public class AttendanceRepository {
         return list;
     }
 
+        /**
+     * Kiểm tra NV có đơn OT đã duyệt cho đúng ngày chỉ định không.
+     * Query trực tiếp bằng SQL — không load toàn bộ lịch sử về Java.
+     * Dùng cho: checkInAuto() kiểm tra điều kiện ca OT.
+     *
+     * @param maNV  Mã nhân viên (int PK)
+     * @param ngay  Ngày cần kiểm tra (thường là LocalDate.now())
+     * @return true nếu tồn tại ít nhất 1 đơn OT đã duyệt trong ngày
+     */
+    public boolean coOTDaDuyetTheoNgay(int maNV, LocalDate ngay) {
+        String sql = """
+            SELECT 1 FROM DANGKYLAMTHEM
+            WHERE maNV = ? AND ngay = ? AND trangThai = 'da_duyet'
+            LIMIT 1
+            """;
+        try (Connection conn = DatabaseConnection.getInstance().getConnection();
+            PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, maNV);
+            ps.setDate(2, Date.valueOf(ngay));
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next(); // true nếu có ít nhất 1 dòng
+            }
+        } catch (SQLException e) {
+            System.err.println("[DB] coOTDaDuyetTheoNgay: " + e.getMessage());
+        }
+        return false;
+    }
+
     public boolean deleteDonOT(int maDK) {
         try (Connection conn = DatabaseConnection.getInstance().getConnection();
              PreparedStatement ps = conn.prepareStatement("DELETE FROM DANGKYLAMTHEM WHERE maDK=?")) {
@@ -515,7 +543,7 @@ public class AttendanceRepository {
                 if (rs.next()) return rs.getDouble("luongCoSo");
             }
         } catch (SQLException e) { System.err.println("[DB] getLuongCoBan: " + e.getMessage()); }
-        return 10_000_000.0;
+        return 0.0;
     }
 
     public void setLuongCoBan(int maNV, double luong) {
