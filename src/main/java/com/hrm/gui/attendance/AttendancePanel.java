@@ -67,6 +67,13 @@ public class AttendancePanel extends JPanel {
     private JComboBox<String> cboThangCN, cboNamCN;
     private JPanel statsPanelCN;
     private javax.swing.Timer clockTimer;
+    // Fields for search-based check-in/out (any employee)
+    private int maNVTimKiem = -1;
+    private JTextField txtMaNVCN;
+    private JPanel infoPanelCN;
+    private JLabel lblHoTenCNCN, lblEmailCNCN, lblChucVuCNCN, lblPhongBanCNCN, lblTrangThaiCNCN;
+    private JPanel chamCongStatusPanelCN;
+    private JPanel histPanelCN;
     // Tab — Dang ky OT (Employee/HR/Manager)
     private DefaultTableModel modelDonOTCaNhan;
     private JTable tableDonOTCaNhan;
@@ -1185,7 +1192,12 @@ public class AttendancePanel extends JPanel {
     private JPanel tabCaNhan() {
         JPanel p = panel();
 
-        // === Status card (top) ===
+        // === Top panel (NORTH) ===
+        JPanel topPanel = new JPanel();
+        topPanel.setOpaque(false);
+        topPanel.setLayout(new BoxLayout(topPanel, BoxLayout.Y_AXIS));
+
+        // Real-time clock
         JLabel lblTime = new JLabel();
         lblTime.setFont(new Font("Segoe UI", Font.BOLD, 20));
         lblTime.setForeground(UIColors.PRIMARY_PURPLE);
@@ -1201,15 +1213,52 @@ public class AttendancePanel extends JPanel {
                 clockTimer.stop();
             }
         });
+        JPanel clockRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 5));
+        clockRow.setOpaque(false);
+        clockRow.add(lblTime);
+        topPanel.add(clockRow);
 
-        lblCaNhanStatus = new JLabel("Dang tai...");
+        // Row 0: Ma NV + nut Tim
+        txtMaNVCN = new JTextField(12);
+        txtMaNVCN.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        txtMaNVCN.setToolTipText("Nhap ma nhan vien (VD: NV001)");
+        JButton btnTim = btn("Tim", UIColors.PRIMARY_PURPLE);
+        btnTim.setPreferredSize(new Dimension(70, 30));
+        JPanel searchRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 5));
+        searchRow.setOpaque(false);
+        searchRow.add(new JLabel("Ma nhan vien:"));
+        searchRow.add(txtMaNVCN);
+        searchRow.add(btnTim);
+        topPanel.add(searchRow);
+
+        // Row 1: Panel thong tin nhan vien (an mac dinh)
+        infoPanelCN = new JPanel(new GridLayout(0, 2, 8, 6));
+        infoPanelCN.setBackground(new Color(245, 247, 255));
+        infoPanelCN.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(UIColors.PRIMARY_PURPLE, 1),
+            new EmptyBorder(10, 12, 10, 12)));
+        infoPanelCN.setVisible(false);
+        lblHoTenCNCN    = new JLabel(""); lblHoTenCNCN.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        lblEmailCNCN    = new JLabel(""); lblEmailCNCN.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        lblChucVuCNCN   = new JLabel(""); lblChucVuCNCN.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        lblPhongBanCNCN = new JLabel(""); lblPhongBanCNCN.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        lblTrangThaiCNCN = new JLabel(""); lblTrangThaiCNCN.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        infoPanelCN.add(boldLabel("Ho ten:"));     infoPanelCN.add(lblHoTenCNCN);
+        infoPanelCN.add(boldLabel("Email:"));      infoPanelCN.add(lblEmailCNCN);
+        infoPanelCN.add(boldLabel("Chuc vu:"));    infoPanelCN.add(lblChucVuCNCN);
+        infoPanelCN.add(boldLabel("Phong ban:"));  infoPanelCN.add(lblPhongBanCNCN);
+        infoPanelCN.add(boldLabel("Trang thai:")); infoPanelCN.add(lblTrangThaiCNCN);
+        topPanel.add(infoPanelCN);
+
+        // Row 2+3: Trang thai cham cong + nut check-in/out (an mac dinh)
+        lblCaNhanStatus = new JLabel("Chua check-in hom nay");
         lblCaNhanStatus.setFont(new Font("Segoe UI", Font.BOLD, 14));
 
         dsCaLamCN = svc.getDanhSachCaLam();
         cboCaLamCaNhan = new JComboBox<>();
         for (CaLam ca : dsCaLamCN) cboCaLamCaNhan.addItem(ca.getTenCaLam());
 
-        btnCheckInCN = btn("Check-in", UIColors.SUCCESS_GREEN);
+        btnCheckInCN  = btn("Check-in",  UIColors.SUCCESS_GREEN);
         btnCheckOutCN = btn("Check-out", UIColors.DANGER_RED);
 
         btnCheckInCN.addActionListener(e -> {
@@ -1218,36 +1267,74 @@ public class AttendancePanel extends JPanel {
                 JOptionPane.showMessageDialog(this, "Vui long chon ca lam."); return;
             }
             String maCaLam = dsCaLamCN.get(idx).getMaCaLam();
-            ServiceResult<ChamCong> res = svc.checkIn(maNVCaNhan, maCaLam);
+            ServiceResult<ChamCong> res = svc.checkIn(maNVTimKiem, maCaLam);
             JOptionPane.showMessageDialog(this, res.getMessage());
             refreshCaNhan(); loadLichSuCaNhan();
         });
 
         btnCheckOutCN.addActionListener(e -> {
-            ServiceResult<ChamCong> res = svc.checkOut(maNVCaNhan);
+            ServiceResult<ChamCong> res = svc.checkOut(maNVTimKiem);
             JOptionPane.showMessageDialog(this, res.getMessage());
             refreshCaNhan(); loadLichSuCaNhan();
         });
 
-        JPanel actionPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 5));
-        actionPanel.setOpaque(false);
-        actionPanel.add(new JLabel("Ca lam:"));
-        actionPanel.add(cboCaLamCaNhan);
-        actionPanel.add(btnCheckInCN);
-        actionPanel.add(btnCheckOutCN);
+        JPanel actionRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 5));
+        actionRow.setOpaque(false);
+        actionRow.add(new JLabel("Ca lam:"));
+        actionRow.add(cboCaLamCaNhan);
+        actionRow.add(btnCheckInCN);
+        actionRow.add(btnCheckOutCN);
 
-        JPanel statusCard = new JPanel(new BorderLayout(5, 8));
-        statusCard.setBackground(new Color(245, 247, 255));
-        statusCard.setBorder(BorderFactory.createCompoundBorder(
+        chamCongStatusPanelCN = new JPanel(new BorderLayout(5, 5));
+        chamCongStatusPanelCN.setBackground(new Color(245, 247, 255));
+        chamCongStatusPanelCN.setBorder(BorderFactory.createCompoundBorder(
             BorderFactory.createLineBorder(UIColors.PRIMARY_PURPLE, 1),
-            new EmptyBorder(12, 15, 12, 15)));
-        statusCard.add(lblTime, BorderLayout.NORTH);
-        statusCard.add(lblCaNhanStatus, BorderLayout.CENTER);
-        statusCard.add(actionPanel, BorderLayout.SOUTH);
+            new EmptyBorder(10, 12, 10, 12)));
+        chamCongStatusPanelCN.add(lblCaNhanStatus, BorderLayout.NORTH);
+        chamCongStatusPanelCN.add(actionRow, BorderLayout.SOUTH);
+        chamCongStatusPanelCN.setVisible(false);
+        topPanel.add(chamCongStatusPanelCN);
 
-        // === History panel (center) ===
-        JPanel histPanel = new JPanel(new BorderLayout(0, 5));
-        histPanel.setOpaque(false);
+        // Tim kiem hanh dong
+        btnTim.addActionListener(e -> {
+            String ma = txtMaNVCN.getText().trim();
+            if (ma.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Vui long nhap ma nhan vien.", "Thong bao", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            com.hrm.repo.AttendanceRepository.NhanVienInfo info =
+                com.hrm.repo.AttendanceRepository.getInstance().findNhanVienByMa(ma);
+            if (info == null) {
+                infoPanelCN.setVisible(false);
+                chamCongStatusPanelCN.setVisible(false);
+                if (histPanelCN != null) histPanelCN.setVisible(false);
+                maNVTimKiem = -1;
+                JOptionPane.showMessageDialog(this, "Khong tim thay nhan vien: " + ma, "Loi", JOptionPane.ERROR_MESSAGE);
+            } else {
+                maNVTimKiem = info.maNV;
+                lblHoTenCNCN.setText(info.hoTen);
+                lblEmailCNCN.setText(info.email.isEmpty() ? "(Chua co)" : info.email);
+                lblChucVuCNCN.setText(info.tenChucVu.isEmpty() ? "(Chua co)" : info.tenChucVu);
+                lblPhongBanCNCN.setText(info.tenPhongBan.isEmpty() ? "(Chua co)" : info.tenPhongBan);
+                lblTrangThaiCNCN.setText(formatTrangThaiNV(info.trangThai));
+                lblTrangThaiCNCN.setForeground(
+                    "dang_lam_viec".equals(info.trangThai) ? UIColors.SUCCESS_GREEN : UIColors.DANGER_RED);
+                infoPanelCN.setVisible(true);
+                chamCongStatusPanelCN.setVisible(true);
+                if (histPanelCN != null) histPanelCN.setVisible(true);
+                refreshCaNhan();
+                loadLichSuCaNhan();
+                p.revalidate(); p.repaint();
+            }
+        });
+        txtMaNVCN.addActionListener(e -> btnTim.doClick()); // Enter = Tim
+
+        p.add(topPanel, BorderLayout.NORTH);
+
+        // === History panel (CENTER, hidden by default) ===
+        histPanelCN = new JPanel(new BorderLayout(0, 5));
+        histPanelCN.setOpaque(false);
+        histPanelCN.setVisible(false);
 
         JPanel histToolbar = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 5));
         histToolbar.setOpaque(false);
@@ -1258,29 +1345,26 @@ public class AttendancePanel extends JPanel {
         JButton bLoad = btn("Xem lich su", UIColors.PRIMARY_PURPLE);
         bLoad.addActionListener(e -> loadLichSuCaNhan());
         histToolbar.add(bLoad);
-        histPanel.add(histToolbar, BorderLayout.NORTH);
+        histPanelCN.add(histToolbar, BorderLayout.NORTH);
 
         String[] colsLS = {"Ngay", "Ca lam", "Gio vao", "Gio ra", "So gio", "Trang thai"};
         modelLichSuCaNhan = mdl(colsLS);
         tableLichSuCaNhan = tbl(modelLichSuCaNhan);
         tableLichSuCaNhan.getColumnModel().getColumn(5).setCellRenderer(new StatusR());
-        histPanel.add(new JScrollPane(tableLichSuCaNhan), BorderLayout.CENTER);
+        histPanelCN.add(new JScrollPane(tableLichSuCaNhan), BorderLayout.CENTER);
 
         statsPanelCN = new JPanel(new FlowLayout(FlowLayout.LEFT, 30, 5));
         statsPanelCN.setOpaque(false);
-        histPanel.add(statsPanelCN, BorderLayout.SOUTH);
+        histPanelCN.add(statsPanelCN, BorderLayout.SOUTH);
 
-        p.add(statusCard, BorderLayout.NORTH);
-        p.add(histPanel, BorderLayout.CENTER);
+        p.add(histPanelCN, BorderLayout.CENTER);
 
-        refreshCaNhan();
-        loadLichSuCaNhan();
         return p;
     }
 
     private void refreshCaNhan() {
-        if (maNVCaNhan < 0 || lblCaNhanStatus == null) return;
-        ChamCong cc = svc.getChamCongHomNay(maNVCaNhan);
+        if (maNVTimKiem < 0 || lblCaNhanStatus == null) return;
+        ChamCong cc = svc.getChamCongHomNay(maNVTimKiem);
         DateTimeFormatter fG = DateTimeFormatter.ofPattern("HH:mm");
         if (cc == null) {
             lblCaNhanStatus.setText("Chua check-in hom nay");
@@ -1306,13 +1390,13 @@ public class AttendancePanel extends JPanel {
     }
 
     private void loadLichSuCaNhan() {
-        if (maNVCaNhan < 0 || modelLichSuCaNhan == null) return;
+        if (maNVTimKiem < 0 || modelLichSuCaNhan == null) return;
         modelLichSuCaNhan.setRowCount(0);
         int th = Integer.parseInt((String) cboThangCN.getSelectedItem());
         int nm = Integer.parseInt((String) cboNamCN.getSelectedItem());
         LocalDate tu = LocalDate.of(nm, th, 1);
         LocalDate den = tu.withDayOfMonth(tu.lengthOfMonth());
-        List<ChamCong> ds = svc.getLichSuChamCong(maNVCaNhan, tu, den);
+        List<ChamCong> ds = svc.getLichSuChamCong(maNVTimKiem, tu, den);
         DateTimeFormatter fN = DateTimeFormatter.ofPattern("dd/MM");
         DateTimeFormatter fG = DateTimeFormatter.ofPattern("HH:mm");
         for (ChamCong cc : ds) {
