@@ -161,6 +161,8 @@ CREATE TABLE DANGKYLAMTHEM (
     ngay DATE NOT NULL,
     soGio DECIMAL(4,2) NOT NULL,
     lyDo NVARCHAR(500),
+    heSoOT DECIMAL(4,2) DEFAULT 1.5,       -- Hệ số nhân lương OT (1.5 ngày thường, 2.0 cuối tuần...)
+    nhanXet NVARCHAR(500),                  -- Nhận xét của người duyệt
     nguoiDuyet INT,
     ngayDuyet DATETIME,
     trangThai ENUM('cho_duyet', 'da_duyet', 'tu_choi') DEFAULT 'cho_duyet',
@@ -241,6 +243,18 @@ CREATE TABLE THANHPHANLUONG (
     soTien DECIMAL(15,2) NOT NULL,
     ghiChu NVARCHAR(255),
     FOREIGN KEY (maChiTiet) REFERENCES CHITIETLUONG(maChiTiet) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- Bảng CAUHINH_PHUCAP (Cấu hình các khoản phụ cấp / khấu trừ dùng khi tính lương)
+CREATE TABLE CAUHINH_PHUCAP (
+    maCauHinh INT AUTO_INCREMENT PRIMARY KEY,
+    loai ENUM('thu_nhap', 'khau_tru') NOT NULL,         -- Loại khoản: thu nhập thêm hoặc khấu trừ
+    tenKhoan NVARCHAR(100) NOT NULL,                    -- Tên khoản (VD: "Phụ cấp ăn trưa", "BHXH")
+    kieuTinh ENUM('co_dinh', 'phan_tram') NOT NULL,     -- Cố định (VND) hoặc phần trăm (%) lương cơ sở
+    giaTriMacDinh DECIMAL(15,2) NOT NULL DEFAULT 0,     -- Giá trị: số tiền cố định hoặc % tùy kieuTinh
+    nguon NVARCHAR(100),                                -- Nguồn gốc khoản (VD: "Công ty", "BHXH bắt buộc")
+    hoatDong BOOLEAN DEFAULT TRUE,                      -- TRUE = áp dụng khi tính lương
+    ngayTao DATETIME DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
 -- =====================================================
