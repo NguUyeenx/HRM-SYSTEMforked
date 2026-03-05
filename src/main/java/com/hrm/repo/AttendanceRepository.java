@@ -90,6 +90,16 @@ public class AttendanceRepository {
         return don;
     }
 
+    private DangKyLamThem mapDonOTWithApprover(ResultSet rs) throws SQLException {
+        DangKyLamThem don = mapDonOT(rs);
+        try {
+            String tenND = rs.getString("tenNguoiDuyet");
+            if (tenND != null && !tenND.isEmpty()) don.setApproverName(tenND);
+        }
+        catch (SQLException ignored) {}
+        return don;
+    }
+
     private CauHinhPhuCap mapCauHinh(ResultSet rs) throws SQLException {
         CauHinhPhuCap pc = new CauHinhPhuCap();
         pc.setMaPC(rs.getInt("maCauHinh"));
@@ -337,13 +347,21 @@ public class AttendanceRepository {
         return list;
     }
 
+    // Cập nhật findAllDonOT để JOIN lấy tên người duyệt
     public List<DangKyLamThem> findAllDonOT() {
         List<DangKyLamThem> list = new ArrayList<>();
+        String sql = """
+            SELECT dk.*,
+                ttcn_nv.hoTen,
+                ttcn_nd.hoTen AS tenNguoiDuyet
+            FROM DANGKYLAMTHEM dk
+            LEFT JOIN THONGTINCANHAN ttcn_nv ON dk.maNV = ttcn_nv.maNV
+            LEFT JOIN THONGTINCANHAN ttcn_nd ON dk.nguoiDuyet = ttcn_nd.maNV
+            ORDER BY dk.ngayTao DESC""";
         try (Connection conn = DatabaseConnection.getInstance().getConnection();
-             PreparedStatement ps = conn.prepareStatement(
-                "SELECT dk.*, ttcn.hoTen FROM DANGKYLAMTHEM dk LEFT JOIN THONGTINCANHAN ttcn ON dk.maNV=ttcn.maNV ORDER BY dk.ngayTao DESC");
-             ResultSet rs = ps.executeQuery()) {
-            while (rs.next()) list.add(mapDonOT(rs));
+            PreparedStatement ps = conn.prepareStatement(sql);
+            ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) list.add(mapDonOTWithApprover(rs));
         } catch (SQLException e) { System.err.println("[DB] findAllDonOT: " + e.getMessage()); }
         return list;
     }
@@ -671,6 +689,24 @@ public class AttendanceRepository {
             System.err.println("[DB] getMaNVByTaiKhoan: " + e.getMessage());
         }
         return -1;
+    }
+
+        /**
+     * Lấy hoTen từ THONGTINCANHAN theo maNV (int PK).
+     * Dùng để set approverName sau khi duyệt/từ chối đơn OT.
+     */
+    public String getHoTenByMaNV(int maNV) {
+        try (Connection conn = DatabaseConnection.getInstance().getConnection();
+            PreparedStatement ps = conn.prepareStatement(
+                "SELECT hoTen FROM THONGTINCANHAN WHERE maNV = ?")) {
+            ps.setInt(1, maNV);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) return rs.getString("hoTen");
+            }
+        } catch (SQLException e) {
+            System.err.println("[DB] getHoTenByMaNV: " + e.getMessage());
+        }
+        return null;
     }
 
     /**

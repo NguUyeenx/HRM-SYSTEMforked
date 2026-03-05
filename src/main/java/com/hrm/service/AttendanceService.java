@@ -222,29 +222,31 @@ public class AttendanceService {
     }
 
 
-    public ServiceResult<DangKyLamThem> duyetDonLamThem(int maDK, int nguoiDuyetId, double heSoOT) {
-        DangKyLamThem don = repository.findDonOTById(maDK);
-        if (don == null) return ServiceResult.error("Khong tim thay don.");
-        if (!don.dangChoDuyet()) return ServiceResult.error("Don da xu ly.");
-        don.setHeSoOT(heSoOT); don.duyet(nguoiDuyetId);
-        User approver = MockDataService.getInstance().getUserById(nguoiDuyetId);
-        if (approver != null) don.setApproverName(approver.getFullName());
-        repository.saveDonOT(don);
-        return ServiceResult.success(don, "Da duyet (he so x" + heSoOT + ").");
-    }
+public ServiceResult<DangKyLamThem> duyetDonLamThem(int maDK, int nguoiDuyetId, double heSoOT) {
+    DangKyLamThem don = repository.findDonOTById(maDK);
+    if (don == null) return ServiceResult.error("Khong tim thay don.");
+    if (!don.dangChoDuyet()) return ServiceResult.error("Don da xu ly.");
+    don.setHeSoOT(heSoOT);
+    don.duyet(nguoiDuyetId);
+    // FIX: Lấy tên người duyệt từ DB thay vì MockDataService
+    String approverName = repository.getHoTenByMaNV(nguoiDuyetId);
+    if (approverName != null) don.setApproverName(approverName);
+    repository.saveDonOT(don);
+    return ServiceResult.success(don, "Da duyet (he so x" + heSoOT + ").");
+}
 
-
-    public ServiceResult<DangKyLamThem> tuChoiDonLamThem(int maDK, int nguoiDuyetId) {
-        DangKyLamThem don = repository.findDonOTById(maDK);
-        if (don == null) return ServiceResult.error("Khong tim thay don.");
-        if (!don.dangChoDuyet()) return ServiceResult.error("Don da xu ly.");
-        don.tuChoi(nguoiDuyetId);
-        User approver = MockDataService.getInstance().getUserById(nguoiDuyetId);
-        if (approver != null) don.setApproverName(approver.getFullName());
-        repository.saveDonOT(don);
-        return ServiceResult.success(don, "Da tu choi don OT.");
-    }
-
+public ServiceResult<DangKyLamThem> tuChoiDonLamThem(int maDK, int nguoiDuyetId) {
+    DangKyLamThem don = repository.findDonOTById(maDK);
+    if (don == null) return ServiceResult.error("Khong tim thay don.");
+    if (!don.dangChoDuyet()) return ServiceResult.error("Don da xu ly.");
+    don.tuChoi(nguoiDuyetId);
+    // FIX: Lấy tên người duyệt từ DB thay vì MockDataService
+    String approverName = repository.getHoTenByMaNV(nguoiDuyetId);
+    if (approverName != null) don.setApproverName(approverName);
+    repository.saveDonOT(don);
+    return ServiceResult.success(don, "Da tu choi don OT.");
+}
+    
     public ServiceResult<DangKyLamThem> capNhatHeSoOT(int maDK, double heSoMoi) {
         DangKyLamThem don = repository.findDonOTById(maDK);
         if (don == null) return ServiceResult.error("Khong tim thay don.");

@@ -494,10 +494,17 @@ public class AttendancePanel extends JPanel {
             });
         }
     }                
-    private void duyetOT(){int row=tableDonOT.getSelectedRow();
-        if(row<0){JOptionPane.showMessageDialog(this,"Chon don.");return;}
-        int maDK=(int)modelOT.getValueAt(row,0);String tt=(String)modelOT.getValueAt(row,6);
-        if(!tt.contains("Cho")){JOptionPane.showMessageDialog(this,"Don da xu ly.");return;}
+    private void duyetOT(){
+        int row=tableDonOT.getSelectedRow();
+        if(row<0){JOptionPane.showMessageDialog(this,"Chon don.");
+        return;
+    }
+        int maDK=(int)modelOT.getValueAt(row,0);
+        String tt=(String)modelOT.getValueAt(row,6);
+        if (!DangKyLamThem.TrangThai.CHO_DUYET.getDisplayName().equals(tt)) {
+            JOptionPane.showMessageDialog(this, "Don da xu ly."); return;
+        }
+
         String[]opts={"x1.5 (ngay thuong)","x2.0 (cuoi tuan)","x3.0 (ngay le)"};
         String ch=(String)JOptionPane.showInputDialog(this,"Chon he so OT:","He so OT",
             JOptionPane.QUESTION_MESSAGE,null,opts,opts[0]);if(ch==null)return;
