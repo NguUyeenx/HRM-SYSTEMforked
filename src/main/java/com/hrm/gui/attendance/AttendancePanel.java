@@ -44,11 +44,8 @@ public class AttendancePanel extends JPanel {
     private JComboBox<String> cboThangL, cboNamL;
     private JPanel luongStats;
     private BangLuong bangLuongHienTai;
-        // Thêm vào khu vực field Tab 4;
-    // Cache ds ChiTietLuong đã load để Export dùng lại (tránh query lại DB)
+    // Cache ChiTietLuong đã load, dùng lại khi export (tránh query lại DB)
     private List<ChiTietLuong> dsCachedLuong = new java.util.ArrayList<>();
-
-        // Thêm vào khu vực khai báo field Tab 4
     private JSpinner spinThangL, spinNamL;
     // Map lưu trạng thái ẩn/hiện của từng cột (index → ẩn)
     private final boolean[] colHidden = new boolean[12]; // 12 cột

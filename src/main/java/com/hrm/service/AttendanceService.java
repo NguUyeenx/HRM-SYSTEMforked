@@ -249,7 +249,6 @@ public class AttendanceService {
         if (!don.dangChoDuyet()) return ServiceResult.error("Don da xu ly.");
         don.setHeSoOT(heSoOT);
         don.duyet(nguoiDuyetId);
-        // Lấy tên người duyệt từ DB
         String approverName = repository.getHoTenByMaNV(nguoiDuyetId);
         if (approverName != null) don.setApproverName(approverName);
         repository.saveDonOT(don);
@@ -261,7 +260,6 @@ public class AttendanceService {
         if (don == null) return ServiceResult.error("Khong tim thay don.");
         if (!don.dangChoDuyet()) return ServiceResult.error("Don da xu ly.");
         don.tuChoi(nguoiDuyetId);
-        // Lấy tên người duyệt từ DB
         String approverName = repository.getHoTenByMaNV(nguoiDuyetId);
         if (approverName != null) don.setApproverName(approverName);
         repository.saveDonOT(don);
