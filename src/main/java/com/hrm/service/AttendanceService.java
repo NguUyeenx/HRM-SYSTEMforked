@@ -166,13 +166,13 @@ public class AttendanceService {
         cc.setGioVao(LocalDateTime.now());
         cc.setPhuongThucChamCong(ChamCong.PhuongThuc.THU_CONG);
 
-        // Đi muộn nếu check-in sau gioBatDau + 5 phút (thay vì 15 phút cũ)
+        // Đánh dấu trạng thái đi muộn nếu check-in sau giờ bắt đầu + 5 phút
         cc.setTrangThai(
             LocalDateTime.now().toLocalTime().isAfter(caLam.getGioBatDau().plusMinutes(5))
                 ? ChamCong.TrangThai.DI_MUON
                 : ChamCong.TrangThai.DUNG_GIO);
 
-        // Đánh dấu OT vào ghiChu — không cần thêm cột DB
+        // Đánh dấu OT vào cột ghiChu
         cc.setLaOT(laOT);
 
         repository.saveChamCong(cc);
@@ -243,30 +243,30 @@ public class AttendanceService {
     }
 
 
-public ServiceResult<DangKyLamThem> duyetDonLamThem(int maDK, int nguoiDuyetId, double heSoOT) {
-    DangKyLamThem don = repository.findDonOTById(maDK);
-    if (don == null) return ServiceResult.error("Khong tim thay don.");
-    if (!don.dangChoDuyet()) return ServiceResult.error("Don da xu ly.");
-    don.setHeSoOT(heSoOT);
-    don.duyet(nguoiDuyetId);
-    // FIX: Lấy tên người duyệt từ DB thay vì MockDataService
-    String approverName = repository.getHoTenByMaNV(nguoiDuyetId);
-    if (approverName != null) don.setApproverName(approverName);
-    repository.saveDonOT(don);
-    return ServiceResult.success(don, "Da duyet (he so x" + heSoOT + ").");
-}
+    public ServiceResult<DangKyLamThem> duyetDonLamThem(int maDK, int nguoiDuyetId, double heSoOT) {
+        DangKyLamThem don = repository.findDonOTById(maDK);
+        if (don == null) return ServiceResult.error("Khong tim thay don.");
+        if (!don.dangChoDuyet()) return ServiceResult.error("Don da xu ly.");
+        don.setHeSoOT(heSoOT);
+        don.duyet(nguoiDuyetId);
+        // Lấy tên người duyệt từ DB
+        String approverName = repository.getHoTenByMaNV(nguoiDuyetId);
+        if (approverName != null) don.setApproverName(approverName);
+        repository.saveDonOT(don);
+        return ServiceResult.success(don, "Da duyet (he so x" + heSoOT + ").");
+    }
 
-public ServiceResult<DangKyLamThem> tuChoiDonLamThem(int maDK, int nguoiDuyetId) {
-    DangKyLamThem don = repository.findDonOTById(maDK);
-    if (don == null) return ServiceResult.error("Khong tim thay don.");
-    if (!don.dangChoDuyet()) return ServiceResult.error("Don da xu ly.");
-    don.tuChoi(nguoiDuyetId);
-    // FIX: Lấy tên người duyệt từ DB thay vì MockDataService
-    String approverName = repository.getHoTenByMaNV(nguoiDuyetId);
-    if (approverName != null) don.setApproverName(approverName);
-    repository.saveDonOT(don);
-    return ServiceResult.success(don, "Da tu choi don OT.");
-}
+    public ServiceResult<DangKyLamThem> tuChoiDonLamThem(int maDK, int nguoiDuyetId) {
+        DangKyLamThem don = repository.findDonOTById(maDK);
+        if (don == null) return ServiceResult.error("Khong tim thay don.");
+        if (!don.dangChoDuyet()) return ServiceResult.error("Don da xu ly.");
+        don.tuChoi(nguoiDuyetId);
+        // Lấy tên người duyệt từ DB
+        String approverName = repository.getHoTenByMaNV(nguoiDuyetId);
+        if (approverName != null) don.setApproverName(approverName);
+        repository.saveDonOT(don);
+        return ServiceResult.success(don, "Da tu choi don OT.");
+    }
     
     public ServiceResult<DangKyLamThem> capNhatHeSoOT(int maDK, double heSoMoi) {
         DangKyLamThem don = repository.findDonOTById(maDK);
@@ -350,7 +350,7 @@ public ServiceResult<DangKyLamThem> tuChoiDonLamThem(int maDK, int nguoiDuyetId)
             .filter(ChamCong::hoanTat)
             .collect(Collectors.groupingBy(ChamCong::getMaNV));
 
-        // ✅ Chỉ tính lương cho NV có giờ công > 0 trong tháng
+        // Chỉ tính lương cho NV có giờ công > 0 trong tháng
         for (Map.Entry<Integer, List<ChamCong>> entry : ccTheoNV.entrySet()) {
             int maNV = entry.getKey();
             List<ChamCong> dsChamCong = entry.getValue();

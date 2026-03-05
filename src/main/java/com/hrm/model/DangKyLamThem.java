@@ -5,14 +5,13 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 
 /**
- * Model đại diện cho bảng DANGKYLAMTHEM (Đăng ký làm thêm giờ / OT).
- *
- * LIÊN KẾT VỚI BẢNG LƯƠNG:
- * - Khi đơn OT được duyệt → tính lương OT = soGio × heSoOT × lương/giờ
- * - Hệ số OT mặc định: 1.5 (ngày thường)
- *
- * THAY ĐỔI: Thêm gioVao/gioRa để nhân viên đăng ký theo khoảng giờ.
- * soGio được tính tự động từ gioVao → gioRa (không cần nhập tay).
+ * Model đại diện cho bảng DANGKYLAMTHEM (đơn đăng ký làm thêm giờ / OT).
+ * <p>
+ * Khi đơn OT được duyệt, lương OT = soGio × heSoOT × lương/giờ.
+ * Hệ số OT mặc định là 1.5 (ngày thường).
+ * <p>
+ * Nhân viên đăng ký theo khoảng giờ (gioVaoOT / gioRaOT);
+ * soGio được tính tự động từ hai field này.
  */
 public class DangKyLamThem {
 
@@ -49,9 +48,7 @@ public class DangKyLamThem {
     private double heSoOT;
     private String nhanXet;
 
-    // ── THÊM MỚI: Khoảng giờ OT do nhân viên đăng ký ──
-    // Lưu ở tầng Java; soGio được tính tự động từ 2 field này.
-    // Nếu DB chưa có 2 cột này, chỉ cần lưu soGio (đã tính sẵn) là đủ.
+    // Khoảng giờ OT do nhân viên đăng ký; soGio được tính tự động từ 2 field này.
     private LocalTime gioVaoOT;   // Giờ bắt đầu OT (vd: 17:00)
     private LocalTime gioRaOT;    // Giờ kết thúc OT  (vd: 20:00)
 
