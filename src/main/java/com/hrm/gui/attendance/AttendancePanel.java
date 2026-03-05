@@ -141,6 +141,7 @@ public class AttendancePanel extends JPanel {
         String[]cols={"Ma NV","Ho ten","Ngay","Ca lam","Gio vao","Gio ra","So gio","OT","Trang thai"};
         modelCC=mdl(cols); tableChamCong=tbl(modelCC);
         tableChamCong.getColumnModel().getColumn(8).setCellRenderer(new StatusR());
+        for (int i : new int[]{2, 3, 4, 5, 6, 7}) tableChamCong.getColumnModel().getColumn(i).setCellRenderer(CENTER_R);
         p.add(new JScrollPane(tableChamCong),BorderLayout.CENTER);
         statsPanel=new JPanel(new FlowLayout(FlowLayout.LEFT,30,10));
         statsPanel.setOpaque(false); statsPanel.setBorder(new EmptyBorder(5,0,0,0));
@@ -401,6 +402,7 @@ public class AttendancePanel extends JPanel {
         String[]cols={"Ma ca","Ten ca","Gio bat dau","Gio ket thuc","So gio chuan","Cho phep OT","Trang thai"};
         modelCaLam=mdl(cols);tableCaLam=tbl(modelCaLam);
         tableCaLam.getColumnModel().getColumn(6).setCellRenderer(new StatusR());
+        for (int i : new int[]{2, 3, 4, 5}) tableCaLam.getColumnModel().getColumn(i).setCellRenderer(CENTER_R);
         loadCaLam();p.add(new JScrollPane(tableCaLam),BorderLayout.CENTER);return p;
     }
     private void loadCaLam(){modelCaLam.setRowCount(0);DateTimeFormatter f=DateTimeFormatter.ofPattern("HH:mm");
@@ -459,6 +461,8 @@ public class AttendancePanel extends JPanel {
         String[]cols={"Ma DK","Ma NV","Ngay","So gio","He so OT","Ly do","Trang thai","Nguoi duyet"};
         modelOT=mdl(cols);tableDonOT=tbl(modelOT);
         tableDonOT.getColumnModel().getColumn(6).setCellRenderer(new StatusR());
+        tableDonOT.getColumnModel().getColumn(2).setCellRenderer(CENTER_R);
+        tableDonOT.getColumnModel().getColumn(3).setCellRenderer(CENTER_R);
         tableDonOT.getColumnModel().getColumn(4).setCellRenderer(new DefaultTableCellRenderer(){
             @Override public Component getTableCellRendererComponent(JTable t,Object v,boolean s,boolean f,int r,int c){
                 super.getTableCellRendererComponent(t,v,s,f,r,c);setHorizontalAlignment(CENTER);
@@ -594,15 +598,11 @@ public class AttendancePanel extends JPanel {
         tableLuong = tbl(modelLuong);
 
         // Renderer căn phải cho cột tiền
-        DefaultTableCellRenderer rightR = new DefaultTableCellRenderer() {
-            @Override public Component getTableCellRendererComponent(
-                    JTable t, Object v, boolean s, boolean f, int r, int c) {
-                super.getTableCellRendererComponent(t, v, s, f, r, c);
-                setHorizontalAlignment(RIGHT); setForeground(Color.BLACK); return this;
-            }
-        };
         for (int i : new int[]{2, 6, 7, 8, 9})
-            tableLuong.getColumnModel().getColumn(i).setCellRenderer(rightR);
+            tableLuong.getColumnModel().getColumn(i).setCellRenderer(RIGHT_R);
+        // Renderer căn giữa cho cột ngày công, giờ làm, giờ OT
+        for (int i : new int[]{3, 4, 5})
+            tableLuong.getColumnModel().getColumn(i).setCellRenderer(CENTER_R);
 
         // Cột "Thực nhận" highlight tím đậm
         tableLuong.getColumnModel().getColumn(10).setCellRenderer(new DefaultTableCellRenderer() {
@@ -1384,6 +1384,7 @@ public class AttendancePanel extends JPanel {
         modelLichSuCaNhan = mdl(colsLS);
         tableLichSuCaNhan = tbl(modelLichSuCaNhan);
         tableLichSuCaNhan.getColumnModel().getColumn(6).setCellRenderer(new StatusR());
+        for (int i : new int[]{0, 1, 2, 3, 4}) tableLichSuCaNhan.getColumnModel().getColumn(i).setCellRenderer(CENTER_R);
         // Cột "OT" — highlight màu tím nếu là ca OT
         tableLichSuCaNhan.getColumnModel().getColumn(5).setCellRenderer(
             new DefaultTableCellRenderer() {
@@ -1518,6 +1519,7 @@ public class AttendancePanel extends JPanel {
         String[] cols = {"Ma NV", "Ho ten", "Ngay", "Ca lam", "Gio vao", "Gio ra", "So gio", "OT", "Trang thai"};
         modelCC = mdl(cols); tableChamCong = tbl(modelCC);
         tableChamCong.getColumnModel().getColumn(8).setCellRenderer(new StatusR());
+        for (int i : new int[]{2, 3, 4, 5, 6, 7}) tableChamCong.getColumnModel().getColumn(i).setCellRenderer(CENTER_R);
         p.add(new JScrollPane(tableChamCong), BorderLayout.CENTER);
         statsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 30, 10));
         statsPanel.setOpaque(false); statsPanel.setBorder(new EmptyBorder(5, 0, 0, 0));
@@ -1622,6 +1624,7 @@ public class AttendancePanel extends JPanel {
         modelDonOTCaNhan = mdl(cols);
         tableDonOTCaNhan = tbl(modelDonOTCaNhan);
         tableDonOTCaNhan.getColumnModel().getColumn(5).setCellRenderer(new StatusR());
+        for (int i : new int[]{1, 2, 3}) tableDonOTCaNhan.getColumnModel().getColumn(i).setCellRenderer(CENTER_R);
 
         JButton btnHuyDon = btn("Huy don", UIColors.DANGER_RED);
         JButton btnLamMoi = new JButton("Lam moi");
@@ -1777,6 +1780,22 @@ public class AttendancePanel extends JPanel {
         for (int yr = y - 2; yr <= y; yr++) c.addItem(String.valueOf(yr));
         c.setSelectedIndex(2); return c;
     }
+    private static final DefaultTableCellRenderer CENTER_R = new DefaultTableCellRenderer() {
+        { setHorizontalAlignment(CENTER); }
+        @Override public Component getTableCellRendererComponent(
+                JTable t, Object v, boolean s, boolean f, int r, int c) {
+            super.getTableCellRendererComponent(t, v, s, f, r, c);
+            setForeground(Color.BLACK); return this;
+        }
+    };
+    private static final DefaultTableCellRenderer RIGHT_R = new DefaultTableCellRenderer() {
+        { setHorizontalAlignment(RIGHT); }
+        @Override public Component getTableCellRendererComponent(
+                JTable t, Object v, boolean s, boolean f, int r, int c) {
+            super.getTableCellRendererComponent(t, v, s, f, r, c);
+            setForeground(Color.BLACK); return this;
+        }
+    };
     private static class StatusR extends DefaultTableCellRenderer {
         @Override public Component getTableCellRendererComponent(JTable t, Object v, boolean s, boolean f, int r, int c) {
             super.getTableCellRendererComponent(t, v, s, f, r, c);
