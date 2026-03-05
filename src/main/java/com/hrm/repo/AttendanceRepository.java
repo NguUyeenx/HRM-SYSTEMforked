@@ -347,7 +347,6 @@ public class AttendanceRepository {
         return list;
     }
 
-    // Cập nhật findAllDonOT để JOIN lấy tên người duyệt
     public List<DangKyLamThem> findAllDonOT() {
         List<DangKyLamThem> list = new ArrayList<>();
         String sql = """
@@ -377,7 +376,7 @@ public class AttendanceRepository {
         return list;
     }
 
-        /**
+    /**
      * Kiểm tra NV có đơn OT đã duyệt cho đúng ngày chỉ định không.
      * Query trực tiếp bằng SQL — không load toàn bộ lịch sử về Java.
      * Dùng cho: checkInAuto() kiểm tra điều kiện ca OT.
@@ -637,7 +636,7 @@ public class AttendanceRepository {
         public final int    maNV;
         public final String maNhanVien;
         public final String hoTen;
-        public final String email;          // ← thêm mới
+        public final String email;
         public final String tenChucVu;
         public final String tenPhongBan;
         public final String trangThai;
@@ -719,7 +718,7 @@ public class AttendanceRepository {
         return -1;
     }
 
-        /**
+    /**
      * Lấy hoTen từ THONGTINCANHAN theo maNV (int PK).
      * Dùng để set approverName sau khi duyệt/từ chối đơn OT.
      */

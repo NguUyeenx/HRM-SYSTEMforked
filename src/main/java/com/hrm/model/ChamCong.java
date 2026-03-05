@@ -5,10 +5,10 @@ import java.time.LocalDateTime;
 import java.time.Duration;
 
 /**
- * Model đại diện cho bảng CHAMCONG (Chấm công hàng ngày).
- * ...
- * THAY ĐỔI: Thêm helper isLaOT() / setLaOT() dùng field ghiChu có sẵn.
- * Không thêm cột DB mới — ghiChu = "OT" khi ca này là OT.
+ * Model đại diện cho bảng CHAMCONG (chấm công hàng ngày).
+ * <p>
+ * Trạng thái OT được lưu vào cột {@code ghiChu} với giá trị {@code "OT"},
+ * không thêm cột mới vào database.
  */
 public class ChamCong {
 
