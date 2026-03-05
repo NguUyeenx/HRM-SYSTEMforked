@@ -25,6 +25,20 @@
             <version>8.3.0</version>
         </dependency>
 
+        <!-- =========================================== -->
+        <!-- JUNIT 5 — Framework chạy test               -->
+        <!-- =========================================== -->
+        <!--
+            TẠI SAO JUNIT 5?
+            - Framework test phổ biến nhất cho Java
+            - Hỗ trợ @Test, @BeforeEach, assertions...
+            - Tích hợp sẵn với Maven (mvn test) và IntelliJ
+
+            scope = test:
+            - Chỉ dùng khi chạy test
+            - KHÔNG đóng gói vào file .jar cuối cùng
+            - → Không tăng kích thước app
+        -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
