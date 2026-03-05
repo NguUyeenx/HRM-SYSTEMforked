@@ -509,13 +509,19 @@ public class AttendancePanel extends JPanel {
         String ch=(String)JOptionPane.showInputDialog(this,"Chon he so OT:","He so OT",
             JOptionPane.QUESTION_MESSAGE,null,opts,opts[0]);if(ch==null)return;
         double hs=ch.contains("2.0")?2.0:ch.contains("3.0")?3.0:1.5;
-        ServiceResult<?>res=svc.duyetDonLamThem(maDK,currentUser.getId(),hs);
+        int maNVNguoiDuyet = getMaNVNguoiDuyet();
+        if(maNVNguoiDuyet<0){JOptionPane.showMessageDialog(this,"Khong tim thay thong tin nhan vien.");return;}
+        ServiceResult<?>res=svc.duyetDonLamThem(maDK,maNVNguoiDuyet,hs);
         JOptionPane.showMessageDialog(this,res.getMessage());loadOT();}
     private void tuChoiOT(){int row=tableDonOT.getSelectedRow();
         if(row<0){JOptionPane.showMessageDialog(this,"Chon don.");return;}
         int maDK=(int)modelOT.getValueAt(row,0);String tt=(String)modelOT.getValueAt(row,6);
         if(!tt.contains("Cho")){JOptionPane.showMessageDialog(this,"Don da xu ly.");return;}
-        svc.tuChoiDonLamThem(maDK,currentUser.getId());loadOT();}
+        int maNVNguoiDuyet = getMaNVNguoiDuyet();
+        if(maNVNguoiDuyet<0){JOptionPane.showMessageDialog(this,"Khong tim thay thong tin nhan vien.");return;}
+        svc.tuChoiDonLamThem(maDK,maNVNguoiDuyet);loadOT();}
+    private int getMaNVNguoiDuyet(){
+        return com.hrm.repo.AttendanceRepository.getInstance().getMaNVByTaiKhoan(currentUser.getId());}
     private void chinhHeSo(){int row=tableDonOT.getSelectedRow();
         if(row<0){JOptionPane.showMessageDialog(this,"Chon don.");return;}
         int maDK=(int)modelOT.getValueAt(row,0);
