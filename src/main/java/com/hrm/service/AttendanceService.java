@@ -5,6 +5,7 @@ import com.hrm.repo.AttendanceRepository;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -56,19 +57,101 @@ public class AttendanceService {
     }
 
     // ── CHECK-IN / CHECK-OUT ──
+
+    /**
+     * Check-in thủ công với ca chỉ định (dùng cho Admin/HR nhập tay).
+     */
     public ServiceResult<ChamCong> checkIn(int maNV, String maCaLam) {
         if (repository.findByMaNVAndNgay(maNV, LocalDate.now()) != null)
             return ServiceResult.error("Da check-in hom nay.");
         CaLam caLam = repository.findCaLamByMa(maCaLam);
         if (caLam == null) return ServiceResult.error("Ca lam khong hop le.");
-        ChamCong cc = new ChamCong(maNV, LocalDate.now(), maCaLam);
-        cc.setTenCaLam(caLam.getTenCaLam()); cc.setGioVao(LocalDateTime.now());
-        cc.setPhuongThucChamCong(ChamCong.PhuongThuc.THU_CONG);
-        cc.setTrangThai(LocalDateTime.now().toLocalTime().isAfter(caLam.getGioBatDau().plusMinutes(15))
-            ? ChamCong.TrangThai.DI_MUON : ChamCong.TrangThai.DUNG_GIO);
-        repository.saveChamCong(cc);
-        return ServiceResult.success(cc, "Check-in thanh cong.");
+        return doCheckIn(maNV, caLam, false);
     }
+
+    /**
+     * Check-in TỰ ĐỘNG — hệ thống tự nhận diện ca làm theo giờ hiện tại.
+     *
+     * Logic nhận diện ca:
+     * 1. Ưu tiên ca đang diễn ra: nowTime trong [gioBD - 30ph, gioKT]
+     * 2. Fallback: ca có giờ bắt đầu gần nhất trong vòng ±2h
+     *
+     * Logic đi muộn: check-in sau (gioBD + 5 phút) → DI_MUON.
+     *
+     * @param maNV  Mã nhân viên (int PK)
+     * @param laOT  true nếu nhân viên đánh dấu đây là ca OT
+     * @return ServiceResult chứa ChamCong vừa tạo, hoặc thông báo lỗi
+     */
+    public ServiceResult<ChamCong> checkInAuto(int maNV, boolean laOT) {
+        if (repository.findByMaNVAndNgay(maNV, LocalDate.now()) != null)
+            return ServiceResult.error("Da check-in hom nay.");
+
+        // Nếu đánh dấu OT → bắt buộc phải có đơn OT đã duyệt hôm nay
+        if (laOT && !coOTDaDuyetHomNay(maNV))
+            return ServiceResult.error(
+                "Ban chua co don OT duoc duyet cho ngay hom nay. Khong the danh dau ca OT.");
+
+        java.time.LocalTime nowTime = LocalDateTime.now().toLocalTime();
+        List<CaLam> dsCaLam = repository.findCaLamHoatDong();
+
+        if (dsCaLam.isEmpty())
+            return ServiceResult.error("Khong co ca lam nao dang hoat dong.");
+
+        // Bước 1: Ca đang diễn ra (vào trong khoảng [gioBD - 30ph, gioKT])
+        CaLam caLamPhuHop = dsCaLam.stream()
+            .filter(ca -> !nowTime.isBefore(ca.getGioBatDau().minusMinutes(30))
+                       && !nowTime.isAfter(ca.getGioKetThuc()))
+            .min(java.util.Comparator.comparingLong(ca ->
+                Math.abs(java.time.Duration.between(ca.getGioBatDau(), nowTime).toMinutes())))
+            .orElse(null);
+
+        // Bước 2: Fallback — ca gần nhất trong ±2h
+        if (caLamPhuHop == null) {
+            caLamPhuHop = dsCaLam.stream()
+                .filter(ca -> Math.abs(
+                    java.time.Duration.between(ca.getGioBatDau(), nowTime).toMinutes()) <= 120)
+                .min(java.util.Comparator.comparingLong(ca ->
+                    Math.abs(java.time.Duration.between(ca.getGioBatDau(), nowTime).toMinutes())))
+                .orElse(null);
+        }
+
+        if (caLamPhuHop == null)
+            return ServiceResult.error(
+                "Khong tim thay ca lam phu hop voi gio hien tai (" +
+                nowTime.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm")) + ").");
+
+        return doCheckIn(maNV, caLamPhuHop, laOT);
+    }
+
+    /**
+     * Logic check-in dùng chung.
+     * Ngưỡng đi muộn: sau gioBatDau + 5 phút.
+     *
+     * @param laOT đánh dấu đây là ca OT (lưu vào ghiChu = "OT")
+     */
+    private ServiceResult<ChamCong> doCheckIn(int maNV, CaLam caLam, boolean laOT) {
+        ChamCong cc = new ChamCong(maNV, LocalDate.now(), caLam.getMaCaLam());
+        cc.setTenCaLam(caLam.getTenCaLam());
+        cc.setGioVao(LocalDateTime.now());
+        cc.setPhuongThucChamCong(ChamCong.PhuongThuc.THU_CONG);
+
+        // Đi muộn nếu check-in sau gioBatDau + 5 phút (thay vì 15 phút cũ)
+        cc.setTrangThai(
+            LocalDateTime.now().toLocalTime().isAfter(caLam.getGioBatDau().plusMinutes(5))
+                ? ChamCong.TrangThai.DI_MUON
+                : ChamCong.TrangThai.DUNG_GIO);
+
+        // Đánh dấu OT vào ghiChu — không cần thêm cột DB
+        cc.setLaOT(laOT);
+
+        repository.saveChamCong(cc);
+
+        String otInfo = laOT ? " [CA OT]" : "";
+        return ServiceResult.success(cc,
+            "Check-in thanh cong" + otInfo + " — Ca: " + caLam.getTenCaLam() +
+            " (" + caLam.getGioBatDau() + " - " + caLam.getGioKetThuc() + ")");
+    }
+
 
     public ServiceResult<ChamCong> checkOut(int maNV) {
         ChamCong cc = repository.findByMaNVAndNgay(maNV, LocalDate.now());
@@ -90,6 +173,32 @@ public class AttendanceService {
     public List<ChamCong> getChamCongTheoThang(int thang, int nam) { return repository.findByThangNam(thang, nam); }
 
     // ── ĐƠN OT ──
+    public ServiceResult<DangKyLamThem> taoDonLamThem(
+            int maNV, LocalDate ngay,
+            java.time.LocalTime gioVao, java.time.LocalTime gioRa,
+            String lyDo) {
+
+        if (gioVao == null || gioRa == null)
+            return ServiceResult.error("Vui long nhap gio bat dau va gio ket thuc OT.");
+        if (lyDo == null || lyDo.trim().isEmpty())
+            return ServiceResult.error("Nhap ly do.");
+
+        double soGio = DangKyLamThem.tinhSoGioOT(gioVao, gioRa);
+        if (soGio <= 0 || soGio > 8)
+            return ServiceResult.error("Khoang thoi gian OT phai tu 0.5 den 8 gio.");
+
+        DangKyLamThem don = new DangKyLamThem(maNV, ngay, gioVao, gioRa, lyDo.trim());
+        repository.saveDonOT(don);
+        return ServiceResult.success(don,
+            "Da tao don OT: " + gioVao + " → " + gioRa +
+            " (" + String.format("%.1f", soGio) + " gio).");
+    }
+
+    /**
+     * Tạo đơn OT theo số giờ (cũ) — giữ để backward-compatible với phần khác.
+     * @deprecated Dùng {@link #taoDonLamThem(int, LocalDate, LocalTime, LocalTime, String)} thay thế.
+     */
+    @Deprecated
     public ServiceResult<DangKyLamThem> taoDonLamThem(int maNV, LocalDate ngay, double soGio, String lyDo) {
         if (soGio <= 0 || soGio > 8) return ServiceResult.error("So gio phai tu 0.5 den 8.");
         if (lyDo == null || lyDo.trim().isEmpty()) return ServiceResult.error("Nhap ly do.");
@@ -97,6 +206,21 @@ public class AttendanceService {
         repository.saveDonOT(don);
         return ServiceResult.success(don, "Da tao don OT.");
     }
+
+    /**
+     * Kiểm tra nhân viên có đơn OT đã được duyệt vào ngày hôm nay không.
+     * Dùng để quyết định có cho phép check checkbox OT khi chấm công hay không.
+     *
+     * @param maNV Mã nhân viên
+     * @return true nếu tồn tại ít nhất 1 đơn OT DA_DUYET hôm nay
+     */
+    public boolean coOTDaDuyetHomNay(int maNV) {
+        LocalDate homNay = LocalDate.now();
+        return repository.findDonOTByMaNV(maNV).stream()
+            .anyMatch(don -> don.daDuocDuyet()
+                          && homNay.equals(don.getNgay()));
+    }
+
 
     public ServiceResult<DangKyLamThem> duyetDonLamThem(int maDK, int nguoiDuyetId, double heSoOT) {
         DangKyLamThem don = repository.findDonOTById(maDK);
@@ -108,6 +232,7 @@ public class AttendanceService {
         repository.saveDonOT(don);
         return ServiceResult.success(don, "Da duyet (he so x" + heSoOT + ").");
     }
+
 
     public ServiceResult<DangKyLamThem> tuChoiDonLamThem(int maDK, int nguoiDuyetId) {
         DangKyLamThem don = repository.findDonOTById(maDK);

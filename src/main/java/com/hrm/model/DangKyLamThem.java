@@ -1,6 +1,5 @@
 package com.hrm.model;
 
-import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -12,10 +11,8 @@ import java.time.LocalTime;
  * - Khi đơn OT được duyệt → tính lương OT = soGio × heSoOT × lương/giờ
  * - Hệ số OT mặc định: 1.5 (ngày thường)
  *
- * THAY ĐỔI (YC2):
- * - Thêm gioBatDauOT, gioKetThucOT để nhân viên điền khoảng giờ thay vì số giờ.
- * - soGio được tính tự động từ khoảng giờ qua constructor mới.
- * - Hỗ trợ ca qua đêm (VD: 22:00 → 02:00).
+ * THAY ĐỔI: Thêm gioVao/gioRa để nhân viên đăng ký theo khoảng giờ.
+ * soGio được tính tự động từ gioVao → gioRa (không cần nhập tay).
  */
 public class DangKyLamThem {
 
@@ -50,11 +47,13 @@ public class DangKyLamThem {
     private double soGio;
     private String lyDo;
     private double heSoOT;
-    private String nhanXet;           // Nhận xét của người duyệt
+    private String nhanXet;
 
-    // ── MỚI (YC2): Lưu khoảng giờ OT — chỉ ở tầng Java, không cần thêm cột DB ──
-    private LocalTime gioBatDauOT;    // VD: 07:00
-    private LocalTime gioKetThucOT;   // VD: 10:00
+    // ── THÊM MỚI: Khoảng giờ OT do nhân viên đăng ký ──
+    // Lưu ở tầng Java; soGio được tính tự động từ 2 field này.
+    // Nếu DB chưa có 2 cột này, chỉ cần lưu soGio (đã tính sẵn) là đủ.
+    private LocalTime gioVaoOT;   // Giờ bắt đầu OT (vd: 17:00)
+    private LocalTime gioRaOT;    // Giờ kết thúc OT  (vd: 20:00)
 
     private Integer nguoiDuyet;
     private String approverName;
@@ -68,7 +67,7 @@ public class DangKyLamThem {
         this.ngayTao = LocalDateTime.now();
     }
 
-    /** Constructor cũ — giữ nguyên để backward compatible. */
+    /** Constructor cũ — backward compatible */
     public DangKyLamThem(int maNV, LocalDate ngay, double soGio, String lyDo) {
         this();
         this.maNV = maNV;
@@ -78,29 +77,37 @@ public class DangKyLamThem {
     }
 
     /**
-     * Constructor mới (YC2) — nhân viên điền từ giờ nào đến giờ nào.
-     * soGio được tính tự động, hỗ trợ ca qua đêm.
-     *
-     * @param maNV         Mã nhân viên
-     * @param ngay         Ngày OT
-     * @param gioBatDauOT  Giờ bắt đầu (VD: LocalTime.of(7, 0))
-     * @param gioKetThucOT Giờ kết thúc (VD: LocalTime.of(10, 0))
-     * @param lyDo         Lý do OT
+     * Constructor mới — nhận khoảng giờ, tự tính soGio.
+     * @param maNV     Mã nhân viên
+     * @param ngay     Ngày OT
+     * @param gioVao   Giờ bắt đầu OT (vd: LocalTime.of(17, 0))
+     * @param gioRa    Giờ kết thúc OT (vd: LocalTime.of(20, 0))
+     * @param lyDo     Lý do OT
      */
-    public DangKyLamThem(int maNV, LocalDate ngay, LocalTime gioBatDauOT, LocalTime gioKetThucOT, String lyDo) {
+    public DangKyLamThem(int maNV, LocalDate ngay, LocalTime gioVao, LocalTime gioRa, String lyDo) {
         this();
         this.maNV = maNV;
         this.ngay = ngay;
-        this.gioBatDauOT = gioBatDauOT;
-        this.gioKetThucOT = gioKetThucOT;
+        this.gioVaoOT = gioVao;
+        this.gioRaOT  = gioRa;
         this.lyDo = lyDo;
-        this.soGio = tinhSoGioOT(gioBatDauOT, gioKetThucOT);
+        // Tự động tính số giờ OT
+        this.soGio = tinhSoGioOT(gioVao, gioRa);
     }
 
-    // ====================================================
-    // GETTERS & SETTERS
-    // ====================================================
+    /**
+     * Tính số giờ OT từ khoảng thời gian.
+     * Hỗ trợ ca qua đêm (vd: 22:00 → 01:00 hôm sau).
+     */
+    public static double tinhSoGioOT(LocalTime vao, LocalTime ra) {
+        if (vao == null || ra == null) return 0;
+        long minutes = java.time.Duration.between(vao, ra).toMinutes();
+        // Nếu ra < vào → qua nửa đêm
+        if (minutes < 0) minutes += 24 * 60;
+        return minutes / 60.0;
+    }
 
+    // ── Getters & Setters ──
     public int getMaDK() { return maDK; }
     public void setMaDK(int maDK) { this.maDK = maDK; }
 
@@ -125,6 +132,20 @@ public class DangKyLamThem {
     public String getNhanXet() { return nhanXet; }
     public void setNhanXet(String nhanXet) { this.nhanXet = nhanXet; }
 
+    /** Giờ bắt đầu OT (hiển thị trên form). */
+    public LocalTime getGioVaoOT() { return gioVaoOT; }
+    public void setGioVaoOT(LocalTime gioVaoOT) {
+        this.gioVaoOT = gioVaoOT;
+        if (this.gioRaOT != null) this.soGio = tinhSoGioOT(gioVaoOT, this.gioRaOT);
+    }
+
+    /** Giờ kết thúc OT (hiển thị trên form). */
+    public LocalTime getGioRaOT() { return gioRaOT; }
+    public void setGioRaOT(LocalTime gioRaOT) {
+        this.gioRaOT = gioRaOT;
+        if (this.gioVaoOT != null) this.soGio = tinhSoGioOT(this.gioVaoOT, gioRaOT);
+    }
+
     public Integer getNguoiDuyet() { return nguoiDuyet; }
     public void setNguoiDuyet(Integer nguoiDuyet) { this.nguoiDuyet = nguoiDuyet; }
 
@@ -140,58 +161,12 @@ public class DangKyLamThem {
     public LocalDateTime getNgayTao() { return ngayTao; }
     public void setNgayTao(LocalDateTime ngayTao) { this.ngayTao = ngayTao; }
 
-    /** Getter giờ bắt đầu OT (null nếu tạo bằng constructor cũ). */
-    public LocalTime getGioBatDauOT() { return gioBatDauOT; }
-    public void setGioBatDauOT(LocalTime gioBatDauOT) {
-        this.gioBatDauOT = gioBatDauOT;
-        if (this.gioKetThucOT != null) this.soGio = tinhSoGioOT(gioBatDauOT, this.gioKetThucOT);
-    }
-
-    /** Getter giờ kết thúc OT (null nếu tạo bằng constructor cũ). */
-    public LocalTime getGioKetThucOT() { return gioKetThucOT; }
-    public void setGioKetThucOT(LocalTime gioKetThucOT) {
-        this.gioKetThucOT = gioKetThucOT;
-        if (this.gioBatDauOT != null) this.soGio = tinhSoGioOT(this.gioBatDauOT, gioKetThucOT);
-    }
-
-    // ====================================================
-    // HELPERS
-    // ====================================================
-
+    // ── Helpers ──
     public boolean dangChoDuyet() { return trangThai == TrangThai.CHO_DUYET; }
     public boolean daDuocDuyet()  { return trangThai == TrangThai.DA_DUYET; }
 
     public double tinhTienOT(double luongMotGio) {
         return soGio * heSoOT * luongMotGio;
-    }
-
-    /**
-     * Tính số giờ OT từ khoảng thời gian. Hỗ trợ ca qua đêm.
-     * VD: 22:00 → 02:00 = 4.0 giờ
-     */
-    private double tinhSoGioOT(LocalTime batDau, LocalTime ketThuc) {
-        long phut;
-        if (!ketThuc.isAfter(batDau)) {
-            // Ca qua đêm
-            phut = Duration.between(batDau, LocalTime.MIDNIGHT).toMinutes()
-                 + Duration.between(LocalTime.MIDNIGHT, ketThuc).toMinutes();
-        } else {
-            phut = Duration.between(batDau, ketThuc).toMinutes();
-        }
-        // Làm tròn 1 chữ số thập phân
-        return Math.round(phut / 60.0 * 10.0) / 10.0;
-    }
-
-    /**
-     * Trả về chuỗi hiển thị khoảng giờ OT cho table.
-     * VD: "07:00 - 10:00 (3.0h)" hoặc "3.0h" nếu không có giờ cụ thể.
-     */
-    public String getKhoangGioDisplay() {
-        if (gioBatDauOT != null && gioKetThucOT != null) {
-            return gioBatDauOT + " - " + gioKetThucOT
-                + " (" + String.format("%.1f", soGio) + "h)";
-        }
-        return String.format("%.1f", soGio) + "h";
     }
 
     public void duyet(int maNguoiDuyet) {
@@ -208,6 +183,9 @@ public class DangKyLamThem {
 
     @Override
     public String toString() {
-        return "DangKyLamThem{maNV=" + maNV + ", soGio=" + soGio + ", heSo=" + heSoOT + "}";
+        String range = (gioVaoOT != null && gioRaOT != null)
+            ? gioVaoOT + "→" + gioRaOT
+            : soGio + "h";
+        return "DangKyLamThem{maNV=" + maNV + ", gio=" + range + ", heSo=" + heSoOT + "}";
     }
 }
