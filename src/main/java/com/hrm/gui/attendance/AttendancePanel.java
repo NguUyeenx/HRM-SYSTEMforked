@@ -516,7 +516,10 @@ public class AttendancePanel extends JPanel {
     private void tuChoiOT(){int row=tableDonOT.getSelectedRow();
         if(row<0){JOptionPane.showMessageDialog(this,"Chon don.");return;}
         int maDK=(int)modelOT.getValueAt(row,0);String tt=(String)modelOT.getValueAt(row,6);
-        if(!tt.contains("Cho")){JOptionPane.showMessageDialog(this,"Don da xu ly.");return;}
+        // ✅ Dùng enum displayName — an toàn hơn
+        if (!DangKyLamThem.TrangThai.CHO_DUYET.getDisplayName().equals(tt)) {
+            JOptionPane.showMessageDialog(this, "Don da xu ly."); return;
+        }        
         int maNVNguoiDuyet = getMaNVNguoiDuyet();
         if(maNVNguoiDuyet<0){JOptionPane.showMessageDialog(this,"Khong tim thay thong tin nhan vien.");return;}
         svc.tuChoiDonLamThem(maDK,maNVNguoiDuyet);loadOT();}
