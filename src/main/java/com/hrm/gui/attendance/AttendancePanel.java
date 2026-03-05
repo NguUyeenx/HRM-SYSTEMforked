@@ -10,6 +10,8 @@ import com.hrm.util.UIColors;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.table.JTableHeader;
+import javax.swing.table.TableCellRenderer;
 import javax.swing.table.DefaultTableCellRenderer;
 import java.awt.*;
 import java.text.NumberFormat;
@@ -1750,6 +1752,19 @@ public class AttendancePanel extends JPanel {
         t.getTableHeader().setForeground(Color.BLACK);
         t.setSelectionBackground(UIColors.LIGHT_PURPLE);
         t.setSelectionForeground(Color.BLACK);
+
+         // ── Căn giữa toàn bộ header ──
+        JTableHeader header = t.getTableHeader();
+        header.setDefaultRenderer(new DefaultTableCellRenderer() {
+            private final TableCellRenderer orig = header.getDefaultRenderer();
+            @Override
+            public Component getTableCellRendererComponent(
+                    JTable t, Object v, boolean s, boolean f, int r, int c) {
+                Component comp = orig.getTableCellRendererComponent(t, v, s, f, r, c);
+                if (comp instanceof JLabel lbl) lbl.setHorizontalAlignment(JLabel.CENTER);
+                return comp;
+            }
+        });
         t.setDefaultRenderer(Object.class, new DefaultTableCellRenderer() {
             @Override public Component getTableCellRendererComponent(JTable table, Object v, boolean s, boolean f, int r, int c) {
                 super.getTableCellRendererComponent(table, v, s, f, r, c);
