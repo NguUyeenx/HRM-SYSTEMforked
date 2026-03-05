@@ -47,18 +47,16 @@ public class LoginFrame extends JFrame {
         txtUsername = new JTextField(20);
         txtUsername.setFont(new Font("Segoe UI", Font.PLAIN, 14));
         txtUsername.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createMatteBorder(0, 0, 2, 0, UIColors.BORDER_GRAY),
-            BorderFactory.createEmptyBorder(8, 5, 8, 5)
-        ));
+                BorderFactory.createMatteBorder(0, 0, 2, 0, UIColors.BORDER_GRAY),
+                BorderFactory.createEmptyBorder(8, 5, 8, 5)));
         txtUsername.setPreferredSize(new Dimension(280, 40));
 
         // Password field
         txtPassword = new JPasswordField(20);
         txtPassword.setFont(new Font("Segoe UI", Font.PLAIN, 14));
         txtPassword.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createMatteBorder(0, 0, 2, 0, UIColors.BORDER_GRAY),
-            BorderFactory.createEmptyBorder(8, 5, 8, 5)
-        ));
+                BorderFactory.createMatteBorder(0, 0, 2, 0, UIColors.BORDER_GRAY),
+                BorderFactory.createEmptyBorder(8, 5, 8, 5)));
         txtPassword.setPreferredSize(new Dimension(280, 40));
 
         // Login button
@@ -170,11 +168,11 @@ public class LoginFrame extends JFrame {
         accountsHtml.append("<b>Tai khoan demo:</b><br/>");
         for (User user : MockDataService.getInstance().getAllUsers()) {
             accountsHtml.append(user.getUsername())
-                       .append(" / ")
-                       .append(user.getPassword())
-                       .append(" (")
-                       .append(user.getRoleNames())
-                       .append(")<br/>");
+                    .append(" / ")
+                    .append(user.getPassword())
+                    .append(" (")
+                    .append(user.getRoleNames())
+                    .append(")<br/>");
         }
         accountsHtml.append("</div></html>");
         JLabel lblDemo = new JLabel(accountsHtml.toString());
@@ -271,7 +269,7 @@ public class LoginFrame extends JFrame {
         btnLogin.setText("Dang xu ly...");
 
         // Use SwingWorker for login operation
-        SwingWorker<User, Void> worker = new SwingWorker<>() {
+        SwingWorker<User, Void> worker = new SwingWorker<User, Void>() {
             @Override
             protected User doInBackground() {
                 return authService.authenticate(username, password);

@@ -10,14 +10,14 @@ import com.hrm.gui.admin.RoleManagementPanel;
 import com.hrm.model.User;
 import com.hrm.util.SessionContext;
 import com.hrm.util.UIColors;
+import com.hrm.gui.admin.DepartmentPanel;
+import com.hrm.gui.admin.PositionPanel;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
-
-import com.hrm.gui.attendance.AttendancePanel;
 
 /**
  * MainFrame - Main application frame with purple theme
@@ -37,15 +37,15 @@ public class MainFrame extends JFrame {
     private JButton btnUsers;
     private JButton btnRoles;
     private JButton btnEmployees;
-    private JButton btnOrganization;   // NV2 - Phòng ban & Chức vụ
-    private JButton btnAppointments;   // NV3 - Bổ nhiệm
-    private JButton btnAttendance;     // NV4 - Chấm công
-    private JButton btnContracts;      // NV5 - Hợp đồng
-    private JButton btnPayroll;        // NV6 - Lương
+    private JButton btnOrganization; // NV2 - Phòng ban & Chức vụ
+    private JButton btnAppointments; // NV3 - Bổ nhiệm
+    private JButton btnAttendance; // NV4 - Chấm công
+    private JButton btnContracts; // NV5 - Hợp đồng
+    private JButton btnPayroll; // NV6 - Lương
     private JButton btnLeave;
     private JButton btnPerformance;
-    private JButton btnNotifications;  // NV10 - Thông báo
-    private JButton btnRecruitment;    // NV11 - Tuyển dụng
+    private JButton btnNotifications; // NV10 - Thông báo
+    private JButton btnRecruitment; // NV11 - Tuyển dụng
     private JButton btnReports;
     private JButton btnSettings;
     private JButton btnLogout;
@@ -95,22 +95,22 @@ public class MainFrame extends JFrame {
 
         // Create menu buttons
         btnDashboard = createMenuButton("Trang chu", "dashboard");
-        
+
         // Nhân sự
         btnEmployees = createMenuButton("Ho so nhan vien", "employees");
         btnOrganization = createMenuButton("Co cau to chuc", "organization");
         btnAppointments = createMenuButton("Bo nhiem", "appointments");
         btnRecruitment = createMenuButton("Tuyen dung", "recruitment");
-        
+
         // Chấm công & Lương
         btnAttendance = createMenuButton("Cham cong", "attendance");
         btnContracts = createMenuButton("Hop dong lao dong", "contracts");
         btnPayroll = createMenuButton("Tinh luong", "payroll");
-        
+
         // Chính sách
         btnLeave = createMenuButton("Nghi phep", "leave");
         btnPerformance = createMenuButton("Danh gia hieu suat", "performance");
-        
+
         // Hệ thống
         btnUsers = createMenuButton("Quan ly tai khoan", "users");
         btnRoles = createMenuButton("Quan ly vai tro", "roles");
@@ -176,9 +176,8 @@ public class MainFrame extends JFrame {
             button.setBackground(UIColors.LIGHT_PURPLE);
             button.setForeground(UIColors.PRIMARY_PURPLE);
             button.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createMatteBorder(0, 4, 0, 0, UIColors.PRIMARY_PURPLE),
-                new EmptyBorder(10, 16, 10, 10)
-            ));
+                    BorderFactory.createMatteBorder(0, 4, 0, 0, UIColors.PRIMARY_PURPLE),
+                    new EmptyBorder(10, 16, 10, 10)));
         }
     }
 
@@ -232,6 +231,7 @@ public class MainFrame extends JFrame {
             public void mouseEntered(java.awt.event.MouseEvent e) {
                 btnHeaderLogout.setBackground(UIColors.PURPLE_HOVER);
             }
+
             @Override
             public void mouseExited(java.awt.event.MouseEvent e) {
                 btnHeaderLogout.setBackground(UIColors.DARK_PURPLE);
@@ -239,7 +239,7 @@ public class MainFrame extends JFrame {
         });
 
         JLabel separator = new JLabel(" | ");
-        separator.setForeground(new Color(255,255,255,100));
+        separator.setForeground(new Color(255, 255, 255, 100));
 
         userSection.add(lblHeaderUser);
         userSection.add(separator);
@@ -344,7 +344,8 @@ public class MainFrame extends JFrame {
     }
 
     private String getInitials(String name) {
-        if (name == null || name.isEmpty()) return "?";
+        if (name == null || name.isEmpty())
+            return "?";
         String[] parts = name.split(" ");
         if (parts.length >= 2) {
             return ("" + parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
@@ -363,22 +364,22 @@ public class MainFrame extends JFrame {
 
         // Menu button actions
         btnDashboard.addActionListener(e -> showDashboard());
-        
+
         // Nhan su
         btnEmployees.addActionListener(e -> showPlaceholder("Ho so nhan vien"));
-        btnOrganization.addActionListener(e -> showPlaceholder("Co cau to chuc"));
+        btnOrganization.addActionListener(e -> showOrganization());
         btnAppointments.addActionListener(e -> showPlaceholder("Bo nhiem"));
         btnRecruitment.addActionListener(e -> showPlaceholder("Tuyen dung"));
-        
+
         // Cham cong & Luong
-        btnAttendance.addActionListener(e -> showAttendance());
+        btnAttendance.addActionListener(e -> showPlaceholder("Cham cong"));
         btnContracts.addActionListener(e -> showPlaceholder("Hop dong lao dong"));
         btnPayroll.addActionListener(e -> showPlaceholder("Tinh luong"));
-        
+
         // Chinh sach
         btnLeave.addActionListener(e -> showLeaveManagement());
         btnPerformance.addActionListener(e -> showPerformanceEvaluation());
-        
+
         // He thong
         btnUsers.addActionListener(e -> showUserManagement());
         btnRoles.addActionListener(e -> showRoleManagement());
@@ -392,22 +393,22 @@ public class MainFrame extends JFrame {
         // Show/hide menu items based on permissions from SessionContext
         SessionContext sc = SessionContext.getInstance();
         boolean isAdmin = sc.hasRole("ADMIN");
-        
+
         // Nhan su - visible to HR and managers
         btnEmployees.setVisible(isAdmin || sc.hasPermission("EMPLOYEE_VIEW") || sc.hasPermission("VIEW_SELF"));
         btnOrganization.setVisible(isAdmin || sc.hasPermission("DEPARTMENT_VIEW") || sc.hasPermission("POSITION_VIEW"));
         btnAppointments.setVisible(isAdmin || sc.hasPermission("APPOINTMENT_VIEW"));
         btnRecruitment.setVisible(isAdmin || sc.hasPermission("RECRUITMENT_VIEW"));
-        
+
         // Cham cong & Luong
         btnAttendance.setVisible(isAdmin || sc.hasPermission("ATTENDANCE_VIEW") || sc.hasPermission("VIEW_SELF"));
         btnContracts.setVisible(isAdmin || sc.hasPermission("CONTRACT_VIEW"));
         btnPayroll.setVisible(isAdmin || sc.hasPermission("PAYROLL_VIEW"));
-        
+
         // Chinh sach
         btnLeave.setVisible(isAdmin || sc.hasPermission("LEAVE_VIEW_ALL") || sc.hasPermission("LEAVE_VIEW_SELF"));
         btnPerformance.setVisible(isAdmin || sc.hasPermission("EVAL_VIEW_ALL") || sc.hasPermission("EVAL_VIEW_SELF"));
-        
+
         // He thong
         btnUsers.setVisible(isAdmin || sc.hasPermission("USER_VIEW") || sc.hasPermission("USER_CREATE"));
         btnRoles.setVisible(isAdmin || sc.hasPermission("ROLE_VIEW") || sc.hasPermission("ROLE_CREATE"));
@@ -541,19 +542,19 @@ public class MainFrame extends JFrame {
 
             if (currentPass.isEmpty() || newPass.isEmpty() || confirmPass.isEmpty()) {
                 JOptionPane.showMessageDialog(this, "Vui long nhap day du thong tin",
-                    "Loi", JOptionPane.WARNING_MESSAGE);
+                        "Loi", JOptionPane.WARNING_MESSAGE);
                 return;
             }
 
             if (!newPass.equals(confirmPass)) {
                 JOptionPane.showMessageDialog(this, "Mat khau xac nhan khong khop",
-                    "Loi", JOptionPane.WARNING_MESSAGE);
+                        "Loi", JOptionPane.WARNING_MESSAGE);
                 return;
             }
 
             // Mock success - in real app this would update database
             JOptionPane.showMessageDialog(this, "Doi mat khau thanh cong (mock)",
-                "Thong bao", JOptionPane.INFORMATION_MESSAGE);
+                    "Thong bao", JOptionPane.INFORMATION_MESSAGE);
             txtCurrentPass.setText("");
             txtNewPass.setText("");
             txtConfirmPass.setText("");
@@ -615,29 +616,6 @@ public class MainFrame extends JFrame {
         // Add LeaveListPanel
         LeaveListPanel leavePanel = new LeaveListPanel();
         wrapperPanel.add(leavePanel, BorderLayout.CENTER);
-
-        contentPanel.add(wrapperPanel);
-        contentPanel.revalidate();
-        contentPanel.repaint();
-    }
-
-    private void showAttendance() {
-        setActiveButton(btnAttendance);
-        contentPanel.removeAll();
-
-        JPanel wrapperPanel = new JPanel(new BorderLayout());
-        wrapperPanel.setBackground(UIColors.LIGHT_GRAY_BG);
-        wrapperPanel.setBorder(new EmptyBorder(15, 15, 15, 15));
-
-        JLabel lblHeader = new JLabel("Cham cong & Lam them gio");
-        lblHeader.setFont(new Font("Segoe UI", Font.BOLD, 24));
-        lblHeader.setForeground(UIColors.TEXT_DARK);
-        lblHeader.setBorder(new EmptyBorder(0, 10, 15, 0));
-        wrapperPanel.add(lblHeader, BorderLayout.NORTH);
-
-        // Nhúng AttendancePanel vào content area
-        AttendancePanel attendancePanel = new AttendancePanel();
-        wrapperPanel.add(attendancePanel, BorderLayout.CENTER);
 
         contentPanel.add(wrapperPanel);
         contentPanel.revalidate();
@@ -715,10 +693,10 @@ public class MainFrame extends JFrame {
 
     private void logout() {
         int confirm = JOptionPane.showConfirmDialog(this,
-            "Ban co chac muon dang xuat?",
-            "Xac nhan dang xuat",
-            JOptionPane.YES_NO_OPTION,
-            JOptionPane.QUESTION_MESSAGE);
+                "Ban co chac muon dang xuat?",
+                "Xac nhan dang xuat",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.QUESTION_MESSAGE);
 
         if (confirm == JOptionPane.YES_OPTION) {
             authService.logout();
@@ -729,14 +707,50 @@ public class MainFrame extends JFrame {
 
     private void confirmExit() {
         int confirm = JOptionPane.showConfirmDialog(this,
-            "Ban co chac muon thoat ung dung?",
-            "Xac nhan thoat",
-            JOptionPane.YES_NO_OPTION,
-            JOptionPane.QUESTION_MESSAGE);
+                "Ban co chac muon thoat ung dung?",
+                "Xac nhan thoat",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.QUESTION_MESSAGE);
 
         if (confirm == JOptionPane.YES_OPTION) {
             authService.logout();
             System.exit(0);
         }
     }
+
+    private void showOrganization() {
+        setActiveButton(btnOrganization);
+        contentPanel.removeAll();
+
+        JPanel wrapperPanel = new JPanel(new BorderLayout());
+        wrapperPanel.setBackground(UIColors.LIGHT_GRAY_BG);
+        wrapperPanel.setBorder(new EmptyBorder(15, 15, 15, 15));
+
+        // Header
+        JLabel lblHeader = new JLabel("Quan ly To chuc & Chuc vu");
+        lblHeader.setFont(new Font("Segoe UI", Font.BOLD, 24));
+        lblHeader.setForeground(UIColors.TEXT_DARK);
+        lblHeader.setBorder(new EmptyBorder(0, 10, 15, 0));
+        wrapperPanel.add(lblHeader, BorderLayout.NORTH);
+
+        // Tạo JTabbedPane với 2 tab
+        JTabbedPane tabbedPane = new JTabbedPane();
+        tabbedPane.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        tabbedPane.setBackground(UIColors.WHITE);
+
+        // Tab 1: Phòng ban
+        DepartmentPanel departmentPanel = new DepartmentPanel();
+        tabbedPane.addTab("Phong ban", departmentPanel);
+
+        // Tab 2: Chức vụ
+        PositionPanel positionPanel = new PositionPanel();
+        tabbedPane.addTab("Chuc vu", positionPanel);
+
+        wrapperPanel.add(tabbedPane, BorderLayout.CENTER);
+
+        contentPanel.add(wrapperPanel);
+        contentPanel.revalidate();
+        contentPanel.repaint();
+    }
+
 }

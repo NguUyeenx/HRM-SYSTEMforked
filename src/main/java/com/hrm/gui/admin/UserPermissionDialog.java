@@ -4,6 +4,7 @@ import com.hrm.model.Permission;
 import com.hrm.model.User;
 import com.hrm.service.MockDataService;
 import com.hrm.util.UIHelper;
+import com.hrm.model.Role;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -16,7 +17,8 @@ import java.util.Map;
 
 /**
  * User Permission Dialog - Manage per-user permission exceptions
- * Implements dynamic RBAC: Effective = (Role Permissions) ∪ (Granted) - (Denied)
+ * Implements dynamic RBAC: Effective = (Role Permissions) ∪ (Granted) -
+ * (Denied)
  */
 public class UserPermissionDialog extends JDialog {
     private final MockDataService dataService;
@@ -49,12 +51,13 @@ public class UserPermissionDialog extends JDialog {
         cboModule.addActionListener(e -> loadData());
 
         // Table
-        String[] columns = {"Quyen", "Mo ta", "Tu vai tro", "Ngoai le", "Ket qua"};
+        String[] columns = { "Quyen", "Mo ta", "Tu vai tro", "Ngoai le", "Ket qua" };
         tableModel = new DefaultTableModel(columns, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
                 return column == 3; // Only exception column is editable
             }
+
             @Override
             public Class<?> getColumnClass(int column) {
                 return String.class;
@@ -88,7 +91,7 @@ public class UserPermissionDialog extends JDialog {
         });
 
         // Combo box editor for exception column
-        String[] exceptionOptions = {"(Theo vai tro)", "Cap quyen", "Tu choi"};
+        String[] exceptionOptions = { "(Theo vai tro)", "Cap quyen", "Tu choi" };
         JComboBox<String> cboException = new JComboBox<>(exceptionOptions);
         table.getColumnModel().getColumn(3).setCellEditor(new DefaultCellEditor(cboException));
     }
@@ -99,7 +102,7 @@ public class UserPermissionDialog extends JDialog {
 
         // Top panel - info and filter
         JPanel topPanel = new JPanel(new BorderLayout(10, 10));
-        
+
         JPanel infoPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         infoPanel.add(new JLabel("Tai khoan: " + user.getUsername()));
         infoPanel.add(Box.createHorizontalStrut(20));
@@ -164,7 +167,7 @@ public class UserPermissionDialog extends JDialog {
 
             // Check if user has this permission from roles
             boolean fromRole = false;
-            for (var role : user.getRoles()) {
+            for (Role role : user.getRoles()) {
                 if (role.hasPermission(perm.getCode())) {
                     fromRole = true;
                     break;
@@ -186,11 +189,11 @@ public class UserPermissionDialog extends JDialog {
             boolean effective = user.hasPermission(perm.getCode());
 
             Object[] row = {
-                perm.getCode(),
-                perm.getName(),
-                fromRole ? "CO" : "-",
-                exceptionText,
-                effective ? "CO" : "KHONG"
+                    perm.getCode(),
+                    perm.getName(),
+                    fromRole ? "CO" : "-",
+                    exceptionText,
+                    effective ? "CO" : "KHONG"
             };
             tableModel.addRow(row);
         }
