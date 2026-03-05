@@ -7,11 +7,13 @@ package com.hrm.model;
  */
 public class CauHinhPhuCap {
 
+    /**
+     * Kiểu tính giá trị phụ cấp/khấu trừ.
+     * DB có thể lưu "theo_phan_tram" hoặc "phan_tram" — cả 2 đều map về PHAN_TRAM.
+     */
     public enum KieuTinh {
-        CO_DINH("co_dinh", "Co dinh"),
-        PHAN_TRAM("phan_tram", "% Luong CB");
-        // Lưu ý: DB dùng "theo_phan_tram", map về PHAN_TRAM
-        // (xem fromDbValue bên dưới)
+        CO_DINH("co_dinh", "Cố định"),
+        PHAN_TRAM("phan_tram", "% Lương CB");
 
         private final String dbValue;
         private final String displayName;
@@ -89,7 +91,6 @@ public class CauHinhPhuCap {
     public KieuTinh getKieuTinh() { return kieuTinh; }
     public void setKieuTinh(KieuTinh kieuTinh) { this.kieuTinh = kieuTinh; }
 
-    /** Tên gốc của field */
     public double getGiaTri() { return giaTri; }
     public void setGiaTri(double giaTri) { this.giaTri = giaTri; }
 
